@@ -22,3 +22,8 @@
 .numeric-input::placeholder {
   color: var(--text-muted);
 }
+
+.numeric-input--prefilled::placeholder {
+  color: var(--text-secondary);
+  font-style: italic;
+}

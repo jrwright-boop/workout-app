@@ -50,7 +50,7 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
       return { ...state, activeDayId: action.payload.dayId };
 
     case 'ADD_EXERCISE': {
-      const { dayId, name, defaultSetCount, burndown } = action.payload;
+      const { dayId, name, defaultSetCount } = action.payload;
       const exerciseId = generateId();
       const day = state.days[dayId];
       return {
@@ -62,7 +62,7 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
             exerciseOrder: [...day.exerciseOrder, exerciseId],
             exercises: {
               ...day.exercises,
-              [exerciseId]: { id: exerciseId, name, defaultSetCount, burndown, skipped: false },
+              [exerciseId]: { id: exerciseId, name, defaultSetCount, skipped: false },
             },
           },
         },
@@ -70,7 +70,7 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
     }
 
     case 'EDIT_EXERCISE': {
-      const { dayId, exerciseId, name, defaultSetCount, burndown } = action.payload;
+      const { dayId, exerciseId, name, defaultSetCount } = action.payload;
       const day = state.days[dayId];
       return {
         ...state,
@@ -80,7 +80,7 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
             ...day,
             exercises: {
               ...day.exercises,
-              [exerciseId]: { ...day.exercises[exerciseId], name, defaultSetCount, burndown },
+              [exerciseId]: { ...day.exercises[exerciseId], name, defaultSetCount },
             },
           },
         },
@@ -131,60 +131,18 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
       };
     }
 
-    case 'TOGGLE_BURNDOWN': {
-      const { dayId, exerciseId } = action.payload;
-      const day = state.days[dayId];
-      const ex = day.exercises[exerciseId];
-      const burndown = ex.burndown?.enabled
-        ? { enabled: false, dropCount: ex.burndown.dropCount }
-        : { enabled: true, dropCount: ex.burndown?.dropCount ?? 3 };
-      return {
-        ...state,
-        days: {
-          ...state.days,
-          [dayId]: {
-            ...day,
-            exercises: { ...day.exercises, [exerciseId]: { ...ex, burndown } },
-          },
-        },
-      };
-    }
-
-    case 'SET_DROP_COUNT': {
-      const { dayId, exerciseId, count } = action.payload;
-      const day = state.days[dayId];
-      const ex = day.exercises[exerciseId];
-      return {
-        ...state,
-        days: {
-          ...state.days,
-          [dayId]: {
-            ...day,
-            exercises: {
-              ...day.exercises,
-              [exerciseId]: {
-                ...ex,
-                burndown: { enabled: ex.burndown?.enabled ?? true, dropCount: count },
-              },
-            },
-          },
-        },
-      };
-    }
-
     case 'START_SESSION': {
       const { dayId } = action.payload;
       const day = state.days[dayId];
       const now = new Date().toISOString();
 
-      // Find last session for this day to pre-fill weights
+      // Find last session for this day to pre-fill weights and reps
       const lastSession = state.history.find(s => s.dayId === dayId);
 
       const exercises: SessionExercise[] = day.exerciseOrder
         .map(eid => day.exercises[eid])
         .filter(ex => !ex.skipped)
         .map(ex => {
-          // Find matching exercise in last session
           const lastEx = lastSession?.exercises.find(e => e.exerciseId === ex.id);
 
           const sets: SetEntry[] = Array.from({ length: ex.defaultSetCount }, (_, i) => {
@@ -193,20 +151,11 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
               weight: lastSet?.weight ?? null,
               reps: null,
               completed: false,
+              repsFromLastSession: lastSet?.reps ?? null,
             };
           });
 
-          let burndown: { drops: DropEntry[] } | null = null;
-          if (ex.burndown?.enabled) {
-            burndown = {
-              drops: Array.from({ length: ex.burndown.dropCount }, () => ({
-                weight: null,
-                reps: null,
-              })),
-            };
-          }
-
-          return { exerciseId: ex.id, name: ex.name, sets, burndown };
+          return { exerciseId: ex.id, name: ex.name, sets, burndown: null, notes: '', skipped: false };
         });
 
       const session: WorkoutSession = {
@@ -256,7 +205,16 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
       const exercises = [...state.activeSession.exercises];
       const ex = { ...exercises[exerciseIndex] };
       const sets = [...ex.sets];
-      sets[setIndex] = { ...sets[setIndex], completed: !sets[setIndex].completed };
+      const currentSet = sets[setIndex];
+      const nowCompleting = !currentSet.completed;
+      sets[setIndex] = {
+        ...currentSet,
+        completed: nowCompleting,
+        // Auto-fill reps from last session placeholder when completing
+        reps: nowCompleting && currentSet.reps === null && currentSet.repsFromLastSession !== null
+          ? currentSet.repsFromLastSession
+          : currentSet.reps,
+      };
       ex.sets = sets;
       exercises[exerciseIndex] = ex;
       return { ...state, activeSession: { ...state.activeSession, exercises } };
@@ -267,7 +225,7 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
       const { exerciseIndex } = action.payload;
       const exercises = [...state.activeSession.exercises];
       const ex = { ...exercises[exerciseIndex] };
-      ex.sets = [...ex.sets, { weight: null, reps: null, completed: false }];
+      ex.sets = [...ex.sets, { weight: null, reps: null, completed: false, repsFromLastSession: null }];
       exercises[exerciseIndex] = ex;
       return { ...state, activeSession: { ...state.activeSession, exercises } };
     }
@@ -292,6 +250,61 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
       drops[dropIndex] = { ...drops[dropIndex], [field]: value };
       ex.burndown = { drops };
       exercises[exerciseIndex] = ex;
+      return { ...state, activeSession: { ...state.activeSession, exercises } };
+    }
+
+    case 'TOGGLE_SESSION_BURNDOWN': {
+      if (!state.activeSession) return state;
+      const { exerciseIndex } = action.payload;
+      const exercises = [...state.activeSession.exercises];
+      const ex = { ...exercises[exerciseIndex] };
+      if (ex.burndown) {
+        ex.burndown = null;
+      } else {
+        ex.burndown = {
+          drops: Array.from({ length: 3 }, (): DropEntry => ({ weight: null, reps: null })),
+        };
+      }
+      exercises[exerciseIndex] = ex;
+      return { ...state, activeSession: { ...state.activeSession, exercises } };
+    }
+
+    case 'SET_SESSION_DROP_COUNT': {
+      if (!state.activeSession) return state;
+      const { exerciseIndex, count } = action.payload;
+      const exercises = [...state.activeSession.exercises];
+      const ex = { ...exercises[exerciseIndex] };
+      if (!ex.burndown) return state;
+      const currentDrops = ex.burndown.drops;
+      const newDrops: DropEntry[] = Array.from({ length: count }, (_, i) =>
+        i < currentDrops.length ? currentDrops[i] : { weight: null, reps: null }
+      );
+      ex.burndown = { drops: newDrops };
+      exercises[exerciseIndex] = ex;
+      return { ...state, activeSession: { ...state.activeSession, exercises } };
+    }
+
+    case 'UPDATE_EXERCISE_NOTES': {
+      if (!state.activeSession) return state;
+      const { exerciseIndex, notes } = action.payload;
+      const exercises = [...state.activeSession.exercises];
+      exercises[exerciseIndex] = { ...exercises[exerciseIndex], notes };
+      return { ...state, activeSession: { ...state.activeSession, exercises } };
+    }
+
+    case 'SET_UNIT':
+      return { ...state, unit: action.payload.unit };
+
+    case 'REORDER_SESSION_EXERCISES': {
+      if (!state.activeSession) return state;
+      return { ...state, activeSession: { ...state.activeSession, exercises: action.payload.exercises } };
+    }
+
+    case 'TOGGLE_SESSION_EXERCISE_SKIP': {
+      if (!state.activeSession) return state;
+      const { exerciseIndex } = action.payload;
+      const exercises = [...state.activeSession.exercises];
+      exercises[exerciseIndex] = { ...exercises[exerciseIndex], skipped: !exercises[exerciseIndex].skipped };
       return { ...state, activeSession: { ...state.activeSession, exercises } };
     }
 

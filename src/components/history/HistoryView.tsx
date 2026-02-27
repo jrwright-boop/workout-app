@@ -36,6 +36,7 @@ function SessionSummary({ session }: { session: WorkoutSession }) {
             <span className="history-ex-name">{ex.name}</span>
             {setsSummary && <span className="history-ex-sets">{setsSummary}</span>}
             {dropsSummary && <span className="history-ex-drops">Drops: {dropsSummary}</span>}
+            {ex.notes && <span className="history-ex-notes">{ex.notes}</span>}
           </div>
         );
       })}
@@ -70,6 +71,7 @@ function ExerciseHistoryContent({ exerciseId, exerciseName }: { exerciseId: Exer
                 <span className="history-date">{formatDateTime(session.startedAt)}</span>
                 {setsSummary && <span className="history-ex-sets">{setsSummary}</span>}
                 {dropsSummary && <span className="history-ex-drops">Drops: {dropsSummary}</span>}
+                {exercise.notes && <span className="history-ex-notes">{exercise.notes}</span>}
               </div>
             );
           })}

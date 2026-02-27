@@ -11,6 +11,7 @@ export function getInitialState(): AppState {
     activeDayId: null,
     activeSession: null,
     history: [],
+    unit: 'lbs',
   };
 }
 
@@ -34,9 +35,48 @@ export function saveState(state: AppState): void {
 }
 
 function migrate(state: AppState): AppState {
-  // Future migrations go here
   if (!state.schemaVersion) {
-    state.schemaVersion = SCHEMA_VERSION;
+    state.schemaVersion = 1;
   }
+
+  if (state.schemaVersion < 2) {
+    // Strip burndown from all ExerciseTemplates
+    for (const dayId of Object.keys(state.days)) {
+      const day = state.days[dayId];
+      for (const exId of Object.keys(day.exercises)) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        delete (day.exercises[exId] as any).burndown;
+      }
+    }
+
+    // Add unit if missing
+    if (!state.unit) {
+      state.unit = 'lbs';
+    }
+
+    // Add notes to any active session exercises and repsFromLastSession to sets
+    if (state.activeSession) {
+      for (const ex of state.activeSession.exercises) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if ((ex as any).notes === undefined) {
+          ex.notes = '';
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if ((ex as any).skipped === undefined) {
+          ex.skipped = false;
+        }
+        for (const set of ex.sets) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          if ((set as any).repsFromLastSession === undefined) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (set as any).repsFromLastSession = null;
+          }
+        }
+      }
+    }
+
+    state.schemaVersion = 2;
+  }
+
   return state;
 }

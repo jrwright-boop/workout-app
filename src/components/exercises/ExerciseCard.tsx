@@ -39,9 +39,6 @@ export const ExerciseCard = memo(function ExerciseCard({
           </button>
           <div className="exercise-meta">
             <span className="set-count">{exercise.defaultSetCount}s</span>
-            {exercise.burndown?.enabled && (
-              <span className="burndown-badge">BD</span>
-            )}
           </div>
           <div className="exercise-actions">
             <button

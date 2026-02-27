@@ -6,6 +6,7 @@ import './SetRow.css';
 interface SetRowProps {
   index: number;
   set: SetEntry;
+  unit: string;
   onUpdateWeight: (value: number | null) => void;
   onUpdateReps: (value: number | null) => void;
   onToggleComplete: () => void;
@@ -16,18 +17,26 @@ interface SetRowProps {
 export const SetRow = memo(function SetRow({
   index,
   set,
+  unit,
   onUpdateWeight,
   onUpdateReps,
   onToggleComplete,
   onRemove,
   canRemove,
 }: SetRowProps) {
+  const hasPrefill = set.reps === null && set.repsFromLastSession !== null;
+
   return (
     <div className={`set-row ${set.completed ? 'set-row--completed' : ''}`}>
       <span className="set-number">{index + 1}</span>
-      <NumericInput value={set.weight} onChange={onUpdateWeight} placeholder="lbs" />
+      <NumericInput value={set.weight} onChange={onUpdateWeight} placeholder={unit} />
       <span className="set-x">&times;</span>
-      <NumericInput value={set.reps} onChange={onUpdateReps} placeholder="reps" />
+      <NumericInput
+        value={set.reps}
+        onChange={onUpdateReps}
+        placeholder={hasPrefill ? String(set.repsFromLastSession) : 'reps'}
+        className={hasPrefill ? 'numeric-input--prefilled' : ''}
+      />
       <button
         className={`check-btn ${set.completed ? 'check-btn--done' : ''}`}
         onClick={onToggleComplete}

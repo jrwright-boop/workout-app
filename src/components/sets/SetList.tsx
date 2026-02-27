@@ -7,10 +7,12 @@ import './SetList.css';
 interface SetListProps {
   exercise: SessionExercise;
   exerciseIndex: number;
+  onSetCompleted?: () => void;
 }
 
-export function SetList({ exercise, exerciseIndex }: SetListProps) {
-  const { dispatch } = useWorkout();
+export function SetList({ exercise, exerciseIndex, onSetCompleted }: SetListProps) {
+  const { state, dispatch } = useWorkout();
+  const unit = state.unit;
 
   return (
     <div className="set-list">
@@ -26,6 +28,7 @@ export function SetList({ exercise, exerciseIndex }: SetListProps) {
           key={setIndex}
           index={setIndex}
           set={set}
+          unit={unit}
           onUpdateWeight={value => dispatch({
             type: 'UPDATE_SET',
             payload: { exerciseIndex, setIndex, field: 'weight', value },
@@ -34,10 +37,16 @@ export function SetList({ exercise, exerciseIndex }: SetListProps) {
             type: 'UPDATE_SET',
             payload: { exerciseIndex, setIndex, field: 'reps', value },
           })}
-          onToggleComplete={() => dispatch({
-            type: 'TOGGLE_SET_COMPLETE',
-            payload: { exerciseIndex, setIndex },
-          })}
+          onToggleComplete={() => {
+            const wasCompleted = set.completed;
+            dispatch({
+              type: 'TOGGLE_SET_COMPLETE',
+              payload: { exerciseIndex, setIndex },
+            });
+            if (!wasCompleted && onSetCompleted) {
+              onSetCompleted();
+            }
+          }}
           onRemove={() => dispatch({
             type: 'REMOVE_SET',
             payload: { exerciseIndex, setIndex },
@@ -53,11 +62,53 @@ export function SetList({ exercise, exerciseIndex }: SetListProps) {
         + Add Set
       </button>
 
-      {exercise.burndown && (
-        <BurndownSets
-          drops={exercise.burndown.drops}
-          exerciseIndex={exerciseIndex}
-        />
+      {!exercise.burndown ? (
+        <button
+          className="add-burndown-btn"
+          onClick={() => dispatch({ type: 'TOGGLE_SESSION_BURNDOWN', payload: { exerciseIndex } })}
+        >
+          + Drop Sets
+        </button>
+      ) : (
+        <div className="burndown-controls">
+          <div className="burndown-controls-header">
+            <span className="burndown-controls-label">Drop Sets</span>
+            <div className="burndown-controls-actions">
+              <div className="stepper stepper--small">
+                <button
+                  className="stepper-btn stepper-btn--small"
+                  onClick={() => dispatch({
+                    type: 'SET_SESSION_DROP_COUNT',
+                    payload: { exerciseIndex, count: Math.max(1, exercise.burndown!.drops.length - 1) },
+                  })}
+                >
+                  -
+                </button>
+                <span className="stepper-value stepper-value--small">{exercise.burndown.drops.length}</span>
+                <button
+                  className="stepper-btn stepper-btn--small"
+                  onClick={() => dispatch({
+                    type: 'SET_SESSION_DROP_COUNT',
+                    payload: { exerciseIndex, count: exercise.burndown!.drops.length + 1 },
+                  })}
+                >
+                  +
+                </button>
+              </div>
+              <button
+                className="burndown-remove-btn"
+                onClick={() => dispatch({ type: 'TOGGLE_SESSION_BURNDOWN', payload: { exerciseIndex } })}
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+          <BurndownSets
+            drops={exercise.burndown.drops}
+            exerciseIndex={exerciseIndex}
+            unit={unit}
+          />
+        </div>
       )}
     </div>
   );

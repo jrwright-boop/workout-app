@@ -65,6 +65,12 @@
   border-radius: 8px;
 }
 
+.history-ex-notes {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
 .history-empty {
   text-align: center;
   color: var(--text-muted);

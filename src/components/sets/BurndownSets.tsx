@@ -6,14 +6,14 @@ import './BurndownSets.css';
 interface BurndownSetsProps {
   drops: DropEntry[];
   exerciseIndex: number;
+  unit: string;
 }
 
-export function BurndownSets({ drops, exerciseIndex }: BurndownSetsProps) {
+export function BurndownSets({ drops, exerciseIndex, unit }: BurndownSetsProps) {
   const { dispatch } = useWorkout();
 
   return (
     <div className="burndown-section">
-      <div className="burndown-header">Burndown / Drop Sets</div>
       {drops.map((drop, dropIndex) => (
         <div key={dropIndex} className="burndown-row">
           <span className="drop-number">D{dropIndex + 1}</span>
@@ -23,7 +23,7 @@ export function BurndownSets({ drops, exerciseIndex }: BurndownSetsProps) {
               type: 'UPDATE_BURNDOWN_DROP',
               payload: { exerciseIndex, dropIndex, field: 'weight', value },
             })}
-            placeholder="lbs"
+            placeholder={unit}
           />
           <span className="set-x">&times;</span>
           <NumericInput

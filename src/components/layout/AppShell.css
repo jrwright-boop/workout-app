@@ -40,6 +40,22 @@
   font-weight: 600;
 }
 
+.unit-toggle {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-transform: lowercase;
+}
+
+.unit-toggle:active {
+  background: var(--border);
+}
+
 .icon-btn {
   background: none;
   border: none;
