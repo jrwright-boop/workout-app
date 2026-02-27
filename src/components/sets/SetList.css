@@ -1,0 +1,37 @@
+.set-list {
+  padding: 8px 0;
+}
+
+.set-list-header {
+  display: flex;
+  gap: 8px;
+  padding: 0 0 4px 0;
+  align-items: center;
+}
+
+.set-list-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.set-list-label:nth-child(1) { width: 24px; text-align: center; }
+.set-list-label:nth-child(2) { width: 72px; text-align: center; }
+.set-list-label:nth-child(4) { width: 72px; text-align: center; }
+
+.add-set-btn {
+  width: 100%;
+  padding: 10px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+.add-set-btn:active {
+  background: var(--surface);
+}

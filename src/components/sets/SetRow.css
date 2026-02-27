@@ -1,0 +1,60 @@
+.set-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.set-row--completed {
+  opacity: 0.6;
+}
+
+.set-number {
+  width: 24px;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.set-x {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.check-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  border: 2px solid var(--border);
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.check-btn--done {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.remove-set-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.remove-set-btn:active {
+  color: var(--danger);
+}

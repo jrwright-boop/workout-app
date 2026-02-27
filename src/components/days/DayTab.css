@@ -1,0 +1,22 @@
+.day-tab {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+
+.day-tab:active {
+  transform: scale(0.96);
+}
+
+.day-tab--active {
+  background: var(--accent);
+  color: #fff;
+}

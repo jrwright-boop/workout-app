@@ -1,0 +1,53 @@
+.active-session {
+  padding: 16px;
+}
+
+.session-header {
+  margin-bottom: 16px;
+}
+
+.session-day-name {
+  margin: 0;
+  font-size: 1.3rem;
+  color: var(--text);
+}
+
+.session-progress {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.session-exercises {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.session-exercise {
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.session-exercise-header {
+  margin-bottom: 8px;
+}
+
+.session-exercise-name {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--text);
+}
+
+.session-last-info {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.session-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 24px;
+}

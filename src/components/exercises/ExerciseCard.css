@@ -1,0 +1,88 @@
+.exercise-card {
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 12px;
+  touch-action: none;
+}
+
+.exercise-card--skipped {
+  opacity: 0.45;
+}
+
+.exercise-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.exercise-name {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.exercise-name:active {
+  color: var(--accent);
+}
+
+.exercise-meta {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.set-count {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  background: var(--bg);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.burndown-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--burndown-accent);
+  background: rgba(255, 149, 0, 0.15);
+  padding: 2px 6px;
+  border-radius: 8px;
+}
+
+.exercise-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.skip-btn, .edit-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+
+.skip-btn--active {
+  color: var(--danger);
+}
+
+.delete-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.delete-btn:active {
+  color: var(--danger);
+}

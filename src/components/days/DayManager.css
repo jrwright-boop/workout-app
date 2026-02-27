@@ -1,0 +1,66 @@
+.day-manager-add {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.day-name-input {
+  flex: 1;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.95rem;
+  outline: none;
+}
+
+.day-name-input:focus {
+  border-color: var(--accent);
+}
+
+.day-manager-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.day-manager-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border-radius: 8px;
+  touch-action: none;
+}
+
+.drag-handle {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: grab;
+  padding: 4px;
+  display: flex;
+  touch-action: none;
+}
+
+.day-manager-name {
+  flex: 1;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.day-action-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.day-action-btn--danger {
+  color: var(--danger);
+}

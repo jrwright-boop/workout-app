@@ -1,0 +1,72 @@
+.history-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.history-session {
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.history-session-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.history-day-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.history-date {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.history-exercise {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0;
+}
+
+.history-ex-name {
+  font-weight: 500;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.history-ex-sets {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.history-ex-drops {
+  color: var(--burndown-accent);
+  font-size: 0.8rem;
+}
+
+.history-exercise-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  background: var(--bg);
+  border-radius: 8px;
+}
+
+.history-empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 20px;
+}

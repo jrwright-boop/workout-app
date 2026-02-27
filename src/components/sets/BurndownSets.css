@@ -1,0 +1,31 @@
+.burndown-section {
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(255, 149, 0, 0.08);
+  border-left: 3px solid var(--burndown-accent);
+  border-radius: 0 8px 8px 0;
+}
+
+.burndown-header {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--burndown-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.burndown-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.drop-number {
+  width: 24px;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--burndown-accent);
+}

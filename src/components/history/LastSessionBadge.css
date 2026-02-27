@@ -1,0 +1,16 @@
+.last-session-badge {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 0 0 32px;
+  font-size: 0.8rem;
+}
+
+.last-label {
+  color: var(--text-muted);
+}
+
+.last-sets {
+  color: var(--text-secondary);
+  font-weight: 500;
+}

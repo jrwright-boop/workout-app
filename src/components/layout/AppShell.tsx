@@ -1,0 +1,36 @@
+import { useState, type ReactNode } from 'react';
+import { useWorkout } from '../../hooks/useWorkout';
+import { HistoryView } from '../history/HistoryView';
+import './AppShell.css';
+
+export function AppShell({ children }: { children: ReactNode }) {
+  const { state } = useWorkout();
+  const [showHistory, setShowHistory] = useState(false);
+
+  return (
+    <div className="app-shell">
+      <header className="top-bar">
+        <h1 className="app-title">Workout</h1>
+        <div className="top-bar-actions">
+          {state.activeSession && (
+            <span className="session-badge">In Progress</span>
+          )}
+          <button
+            className="icon-btn"
+            onClick={() => setShowHistory(true)}
+            title="History"
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+          </button>
+        </div>
+      </header>
+      <main className="main-content">
+        {children}
+      </main>
+      <HistoryView open={showHistory} onClose={() => setShowHistory(false)} />
+    </div>
+  );
+}

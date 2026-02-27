@@ -1,0 +1,99 @@
+:root {
+  --bg: #0f0f0f;
+  --surface: #1a1a1a;
+  --border: #2a2a2a;
+  --accent: #4a9eff;
+  --danger: #ff453a;
+  --burndown-accent: #ff9500;
+  --text: #f0f0f0;
+  --text-secondary: #a0a0a0;
+  --text-muted: #666;
+
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--text);
+  background-color: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  touch-action: manipulation;
+}
+
+#root {
+  min-height: 100dvh;
+}
+
+input, button, select, textarea {
+  font-family: inherit;
+}
+
+/* Shared button styles */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: none;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.btn:active {
+  opacity: 0.8;
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn--accent {
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn--danger {
+  background: transparent;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+
+.btn--full {
+  width: 100%;
+}
+
+.btn--large {
+  padding: 14px 20px;
+  font-size: 1rem;
+}
+
+/* Remove default styles for inputs */
+input[type="text"],
+input[type="number"] {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Prevent zoom on input focus on iOS */
+@supports (-webkit-touch-callout: none) {
+  input[type="text"],
+  input[type="number"],
+  input[inputmode="decimal"] {
+    font-size: 16px;
+  }
+}
