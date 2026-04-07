@@ -21,7 +21,19 @@ export function useExerciseHistory(exerciseId: ExerciseId): ExerciseHistoryEntry
   }, [state.history, exerciseId]);
 }
 
-export function useLastSession(exerciseId: ExerciseId): ExerciseHistoryEntry | null {
+export function useLastSession(exerciseId: ExerciseId, exerciseName?: string): ExerciseHistoryEntry | null {
+  const { state } = useWorkout();
   const history = useExerciseHistory(exerciseId);
-  return history[0] ?? null;
+
+  // Fallback: search by name if no history found by ID (e.g. exercise added mid-session)
+  return useMemo(() => {
+    if (history[0]) return history[0];
+    if (!exerciseName) return null;
+    const nameLower = exerciseName.toLowerCase();
+    for (const session of state.history) {
+      const exercise = session.exercises.find(e => e.name.toLowerCase() === nameLower);
+      if (exercise) return { session, exercise };
+    }
+    return null;
+  }, [history, exerciseName, state.history]);
 }

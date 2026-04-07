@@ -135,6 +135,10 @@
   color: var(--text-muted);
 }
 
+.session-add-exercise-btn {
+  margin-bottom: 24px;
+}
+
 .session-footer {
   display: flex;
   flex-direction: column;

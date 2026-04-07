@@ -5,6 +5,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { useWorkout } from './hooks/useWorkout';
 import { SetList } from './components/sets/SetList';
 import { RestTimer } from './components/sets/RestTimer';
+import { AddSessionExerciseModal } from './components/exercises/AddSessionExerciseModal';
 import { useLastSession } from './hooks/useExerciseHistory';
 import type { SessionExercise } from './types';
 import { formatDate, formatElapsed } from './utils/date';
@@ -22,7 +23,7 @@ function SessionExerciseCard({
   dragHandleProps?: Record<string, unknown>;
 }) {
   const { dispatch } = useWorkout();
-  const lastEntry = useLastSession(exercise.exerciseId);
+  const lastEntry = useLastSession(exercise.exerciseId, exercise.name);
 
   return (
     <div className={`session-exercise ${exercise.skipped ? 'session-exercise--skipped' : ''}`}>
@@ -123,6 +124,7 @@ export function ActiveSession() {
   const { state, dispatch } = useWorkout();
   const session = state.activeSession;
   const [showRestTimer, setShowRestTimer] = useState(false);
+  const [showAddExercise, setShowAddExercise] = useState(false);
 
   if (!session) return null;
 
@@ -170,6 +172,18 @@ export function ActiveSession() {
           </div>
         </SortableContext>
       </DndContext>
+
+      <button
+        className="btn btn--outline btn--full session-add-exercise-btn"
+        onClick={() => setShowAddExercise(true)}
+      >
+        + Add Exercise
+      </button>
+
+      <AddSessionExerciseModal
+        open={showAddExercise}
+        onClose={() => setShowAddExercise(false)}
+      />
 
       <div className={`session-footer ${showRestTimer ? 'session-footer--with-timer' : ''}`}>
         <button

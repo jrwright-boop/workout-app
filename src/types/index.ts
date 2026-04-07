@@ -82,6 +82,7 @@ export type WorkoutAction =
   | { type: 'UPDATE_EXERCISE_NOTES'; payload: { exerciseIndex: number; notes: string } }
   | { type: 'SET_UNIT'; payload: { unit: 'lbs' | 'kg' } }
   | { type: 'REORDER_SESSION_EXERCISES'; payload: { exercises: SessionExercise[] } }
-  | { type: 'TOGGLE_SESSION_EXERCISE_SKIP'; payload: { exerciseIndex: number } };
+  | { type: 'TOGGLE_SESSION_EXERCISE_SKIP'; payload: { exerciseIndex: number } }
+  | { type: 'ADD_SESSION_EXERCISE'; payload: { name: string; setCount: number } };
 
 export const SCHEMA_VERSION = 2;
