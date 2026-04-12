@@ -135,6 +135,18 @@
   color: var(--text-muted);
 }
 
+.session-add-exercise-btn {
+  margin-bottom: 16px;
+  background: var(--bg);
+  border: 1px dashed var(--border);
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.session-add-exercise-btn:active {
+  background: var(--border);
+}
+
 .session-footer {
   display: flex;
   flex-direction: column;

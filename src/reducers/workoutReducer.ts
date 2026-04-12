@@ -308,6 +308,50 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
       return { ...state, activeSession: { ...state.activeSession, exercises } };
     }
 
+    case 'ADD_SESSION_EXERCISE': {
+      if (!state.activeSession) return state;
+      const { exerciseId, name, defaultSetCount } = action.payload;
+
+      // Look up the most recent session where this exercise appeared to pre-fill weights/reps
+      let lastEx: SessionExercise | undefined;
+      if (exerciseId) {
+        for (const session of state.history) {
+          const found = session.exercises.find(e => e.exerciseId === exerciseId);
+          if (found) {
+            lastEx = found;
+            break;
+          }
+        }
+      }
+
+      const sets: SetEntry[] = Array.from({ length: defaultSetCount }, (_, i) => {
+        const lastSet = lastEx?.sets[i];
+        return {
+          weight: lastSet?.weight ?? null,
+          reps: null,
+          completed: false,
+          repsFromLastSession: lastSet?.reps ?? null,
+        };
+      });
+
+      const newExercise: SessionExercise = {
+        exerciseId: exerciseId ?? generateId(),
+        name,
+        sets,
+        burndown: null,
+        notes: '',
+        skipped: false,
+      };
+
+      return {
+        ...state,
+        activeSession: {
+          ...state.activeSession,
+          exercises: [...state.activeSession.exercises, newExercise],
+        },
+      };
+    }
+
     default:
       return state;
   }

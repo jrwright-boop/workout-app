@@ -5,6 +5,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { useWorkout } from './hooks/useWorkout';
 import { SetList } from './components/sets/SetList';
 import { RestTimer } from './components/sets/RestTimer';
+import { AddSessionExerciseForm } from './components/exercises/AddSessionExerciseForm';
 import { useLastSession } from './hooks/useExerciseHistory';
 import type { SessionExercise } from './types';
 import { formatDate, formatElapsed } from './utils/date';
@@ -123,6 +124,7 @@ export function ActiveSession() {
   const { state, dispatch } = useWorkout();
   const session = state.activeSession;
   const [showRestTimer, setShowRestTimer] = useState(false);
+  const [showAddExercise, setShowAddExercise] = useState(false);
 
   if (!session) return null;
 
@@ -171,6 +173,13 @@ export function ActiveSession() {
         </SortableContext>
       </DndContext>
 
+      <button
+        className="btn btn--full session-add-exercise-btn"
+        onClick={() => setShowAddExercise(true)}
+      >
+        + Add Exercise
+      </button>
+
       <div className={`session-footer ${showRestTimer ? 'session-footer--with-timer' : ''}`}>
         <button
           className="btn btn--accent btn--full btn--large"
@@ -197,6 +206,11 @@ export function ActiveSession() {
       {showRestTimer && (
         <RestTimer onDismiss={() => setShowRestTimer(false)} />
       )}
+
+      <AddSessionExerciseForm
+        open={showAddExercise}
+        onClose={() => setShowAddExercise(false)}
+      />
     </div>
   );
 }
