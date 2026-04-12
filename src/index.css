@@ -73,6 +73,12 @@ input, button, select, textarea {
   border: 1px solid var(--danger);
 }
 
+.btn--outline {
+  background: transparent;
+  color: var(--accent);
+  border: 1px dashed var(--accent);
+}
+
 .btn--full {
   width: 100%;
 }

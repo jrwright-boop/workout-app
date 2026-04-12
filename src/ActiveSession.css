@@ -39,7 +39,6 @@
   background: var(--surface);
   border-radius: 12px;
   padding: 16px;
-  touch-action: none;
 }
 
 .session-exercise--skipped {
@@ -135,13 +134,17 @@
   color: var(--text-muted);
 }
 
+.session-add-exercise-btn {
+  margin-bottom: 16px;
+}
+
 .session-footer {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding-bottom: 24px;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
 }
 
 .session-footer--with-timer {
-  padding-bottom: 100px;
+  padding-bottom: calc(100px + env(safe-area-inset-bottom));
 }

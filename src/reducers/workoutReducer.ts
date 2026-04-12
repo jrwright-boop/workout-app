@@ -308,6 +308,56 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
       return { ...state, activeSession: { ...state.activeSession, exercises } };
     }
 
+    case 'ADD_SESSION_EXERCISE': {
+      if (!state.activeSession) return state;
+      const { exerciseId, name, defaultSetCount } = action.payload;
+
+      // Look up the most recent session for pre-fill. Prefer exerciseId match
+      // (stable across renames), fall back to name match so one-off exercises
+      // can still pre-fill from prior entries with the same name.
+      let lastEx: SessionExercise | undefined;
+      if (exerciseId) {
+        for (const past of state.history) {
+          const found = past.exercises.find(e => e.exerciseId === exerciseId);
+          if (found) { lastEx = found; break; }
+        }
+      }
+      if (!lastEx) {
+        const nameLower = name.toLowerCase();
+        for (const past of state.history) {
+          const found = past.exercises.find(e => e.name.toLowerCase() === nameLower);
+          if (found) { lastEx = found; break; }
+        }
+      }
+
+      const sets: SetEntry[] = Array.from({ length: defaultSetCount }, (_, i) => {
+        const lastSet = lastEx?.sets[i];
+        return {
+          weight: lastSet?.weight ?? null,
+          reps: null,
+          completed: false,
+          repsFromLastSession: lastSet?.reps ?? null,
+        };
+      });
+
+      const newExercise: SessionExercise = {
+        exerciseId: exerciseId ?? generateId(),
+        name,
+        sets,
+        burndown: null,
+        notes: '',
+        skipped: false,
+      };
+
+      return {
+        ...state,
+        activeSession: {
+          ...state.activeSession,
+          exercises: [...state.activeSession.exercises, newExercise],
+        },
+      };
+    }
+
     default:
       return state;
   }

@@ -21,7 +21,20 @@ export function useExerciseHistory(exerciseId: ExerciseId): ExerciseHistoryEntry
   }, [state.history, exerciseId]);
 }
 
-export function useLastSession(exerciseId: ExerciseId): ExerciseHistoryEntry | null {
+export function useLastSession(exerciseId: ExerciseId, exerciseName?: string): ExerciseHistoryEntry | null {
+  const { state } = useWorkout();
   const history = useExerciseHistory(exerciseId);
-  return history[0] ?? null;
+
+  // Fall back to name-based lookup for exercises added mid-session (which get
+  // a fresh exerciseId and therefore won't match prior template entries).
+  return useMemo(() => {
+    if (history[0]) return history[0];
+    if (!exerciseName) return null;
+    const nameLower = exerciseName.toLowerCase();
+    for (const session of state.history) {
+      const exercise = session.exercises.find(e => e.name.toLowerCase() === nameLower);
+      if (exercise) return { session, exercise };
+    }
+    return null;
+  }, [history, exerciseName, state.history]);
 }
