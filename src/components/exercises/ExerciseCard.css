@@ -44,6 +44,15 @@
   border-radius: 10px;
 }
 
+.target-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--success);
+  background: rgba(48, 209, 88, 0.15);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
 .burndown-badge {
   font-size: 0.7rem;
   font-weight: 700;

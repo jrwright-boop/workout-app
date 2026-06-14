@@ -20,6 +20,18 @@
 .set-list-label:nth-child(2) { width: 72px; text-align: center; }
 .set-list-label:nth-child(4) { width: 72px; text-align: center; }
 
+.set-list-target {
+  margin-left: auto;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--success);
+  background: rgba(48, 209, 88, 0.12);
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 .add-set-btn {
   width: 100%;
   padding: 10px;

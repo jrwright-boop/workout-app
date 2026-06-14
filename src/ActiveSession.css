@@ -39,10 +39,28 @@
   background: var(--surface);
   border-radius: 12px;
   padding: 16px;
+  border: 1px solid transparent;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .session-exercise--skipped {
   opacity: 0.45;
+}
+
+.session-exercise--progress {
+  border-color: var(--success);
+  box-shadow: 0 0 0 1px var(--success), 0 0 16px rgba(48, 209, 88, 0.18);
+}
+
+.progress-banner {
+  margin: 4px 0 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(48, 209, 88, 0.14);
+  color: var(--success);
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.35;
 }
 
 .session-exercise-header {

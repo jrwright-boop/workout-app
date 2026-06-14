@@ -9,6 +9,7 @@ import { AddSessionExerciseForm } from './components/exercises/AddSessionExercis
 import { useLastSession } from './hooks/useExerciseHistory';
 import type { SessionExercise } from './types';
 import { formatDate, formatElapsed } from './utils/date';
+import { hitTopOfRange } from './utils/repRange';
 import './ActiveSession.css';
 
 function SessionExerciseCard({
@@ -24,9 +25,10 @@ function SessionExerciseCard({
 }) {
   const { dispatch } = useWorkout();
   const lastEntry = useLastSession(exercise.exerciseId, exercise.name);
+  const readyToProgress = hitTopOfRange(exercise);
 
   return (
-    <div className={`session-exercise ${exercise.skipped ? 'session-exercise--skipped' : ''}`}>
+    <div className={`session-exercise ${exercise.skipped ? 'session-exercise--skipped' : ''} ${readyToProgress ? 'session-exercise--progress' : ''}`}>
       <div className="session-exercise-header">
         <button className="session-drag-handle" {...(dragHandleProps ?? {})}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -59,6 +61,11 @@ function SessionExerciseCard({
       </div>
       {!exercise.skipped && (
         <>
+          {readyToProgress && (
+            <div className="progress-banner">
+              🎯 Hit the top of your range on every set — increase the weight next time!
+            </div>
+          )}
           <SetList exercise={exercise} exerciseIndex={exerciseIndex} onSetCompleted={onSetCompleted} />
           <textarea
             className="session-notes"
