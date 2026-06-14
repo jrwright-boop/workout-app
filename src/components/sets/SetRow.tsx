@@ -1,12 +1,14 @@
 import { memo } from 'react';
 import type { SetEntry } from '../../types';
 import { NumericInput } from '../common/NumericInput';
+import { setHitTop } from '../../utils/repRange';
 import './SetRow.css';
 
 interface SetRowProps {
   index: number;
   set: SetEntry;
   unit: string;
+  targetRepMax: number | null;
   onUpdateWeight: (value: number | null) => void;
   onUpdateReps: (value: number | null) => void;
   onToggleComplete: () => void;
@@ -18,6 +20,7 @@ export const SetRow = memo(function SetRow({
   index,
   set,
   unit,
+  targetRepMax,
   onUpdateWeight,
   onUpdateReps,
   onToggleComplete,
@@ -25,9 +28,10 @@ export const SetRow = memo(function SetRow({
   canRemove,
 }: SetRowProps) {
   const hasPrefill = set.reps === null && set.repsFromLastSession !== null;
+  const hitTop = setHitTop(set.reps, set.completed, targetRepMax);
 
   return (
-    <div className={`set-row ${set.completed ? 'set-row--completed' : ''}`}>
+    <div className={`set-row ${set.completed ? 'set-row--completed' : ''} ${hitTop ? 'set-row--hit-top' : ''}`}>
       <span className="set-number">{index + 1}</span>
       <NumericInput value={set.weight} onChange={onUpdateWeight} placeholder={unit} />
       <span className="set-x">&times;</span>
@@ -35,10 +39,10 @@ export const SetRow = memo(function SetRow({
         value={set.reps}
         onChange={onUpdateReps}
         placeholder={hasPrefill ? String(set.repsFromLastSession) : 'reps'}
-        className={hasPrefill ? 'numeric-input--prefilled' : ''}
+        className={`${hasPrefill ? 'numeric-input--prefilled' : ''} ${hitTop ? 'numeric-input--hit-top' : ''}`}
       />
       <button
-        className={`check-btn ${set.completed ? 'check-btn--done' : ''}`}
+        className={`check-btn ${set.completed ? 'check-btn--done' : ''} ${hitTop ? 'check-btn--hit-top' : ''}`}
         onClick={onToggleComplete}
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

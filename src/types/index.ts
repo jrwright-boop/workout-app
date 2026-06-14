@@ -7,6 +7,10 @@ export interface ExerciseTemplate {
   name: string;
   defaultSetCount: number;
   skipped: boolean;
+  /** Lower bound of the target rep range. null = no target set. */
+  targetRepMin: number | null;
+  /** Upper bound of the target rep range. Hitting this on every set signals it's time to add weight. */
+  targetRepMax: number | null;
 }
 
 export interface DayTemplate {
@@ -35,6 +39,9 @@ export interface SessionExercise {
   burndown: { drops: DropEntry[] } | null;
   notes: string;
   skipped: boolean;
+  /** Target rep range snapshotted from the template at session start. */
+  targetRepMin: number | null;
+  targetRepMax: number | null;
 }
 
 export interface WorkoutSession {
@@ -64,8 +71,8 @@ export type WorkoutAction =
   | { type: 'DELETE_DAY'; payload: { dayId: DayId } }
   | { type: 'REORDER_DAYS'; payload: { dayOrder: DayId[] } }
   | { type: 'SET_ACTIVE_DAY'; payload: { dayId: DayId | null } }
-  | { type: 'ADD_EXERCISE'; payload: { dayId: DayId; name: string; defaultSetCount: number } }
-  | { type: 'EDIT_EXERCISE'; payload: { dayId: DayId; exerciseId: ExerciseId; name: string; defaultSetCount: number } }
+  | { type: 'ADD_EXERCISE'; payload: { dayId: DayId; name: string; defaultSetCount: number; targetRepMin: number | null; targetRepMax: number | null } }
+  | { type: 'EDIT_EXERCISE'; payload: { dayId: DayId; exerciseId: ExerciseId; name: string; defaultSetCount: number; targetRepMin: number | null; targetRepMax: number | null } }
   | { type: 'DELETE_EXERCISE'; payload: { dayId: DayId; exerciseId: ExerciseId } }
   | { type: 'REORDER_EXERCISES'; payload: { dayId: DayId; exerciseOrder: ExerciseId[] } }
   | { type: 'TOGGLE_SKIP'; payload: { dayId: DayId; exerciseId: ExerciseId } }
@@ -85,4 +92,4 @@ export type WorkoutAction =
   | { type: 'TOGGLE_SESSION_EXERCISE_SKIP'; payload: { exerciseIndex: number } }
   | { type: 'ADD_SESSION_EXERCISE'; payload: { exerciseId: ExerciseId | null; name: string; defaultSetCount: number } };
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;

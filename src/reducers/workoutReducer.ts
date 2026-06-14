@@ -50,7 +50,7 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
       return { ...state, activeDayId: action.payload.dayId };
 
     case 'ADD_EXERCISE': {
-      const { dayId, name, defaultSetCount } = action.payload;
+      const { dayId, name, defaultSetCount, targetRepMin, targetRepMax } = action.payload;
       const exerciseId = generateId();
       const day = state.days[dayId];
       return {
@@ -62,7 +62,7 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
             exerciseOrder: [...day.exerciseOrder, exerciseId],
             exercises: {
               ...day.exercises,
-              [exerciseId]: { id: exerciseId, name, defaultSetCount, skipped: false },
+              [exerciseId]: { id: exerciseId, name, defaultSetCount, skipped: false, targetRepMin, targetRepMax },
             },
           },
         },
@@ -70,7 +70,7 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
     }
 
     case 'EDIT_EXERCISE': {
-      const { dayId, exerciseId, name, defaultSetCount } = action.payload;
+      const { dayId, exerciseId, name, defaultSetCount, targetRepMin, targetRepMax } = action.payload;
       const day = state.days[dayId];
       return {
         ...state,
@@ -80,7 +80,7 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
             ...day,
             exercises: {
               ...day.exercises,
-              [exerciseId]: { ...day.exercises[exerciseId], name, defaultSetCount },
+              [exerciseId]: { ...day.exercises[exerciseId], name, defaultSetCount, targetRepMin, targetRepMax },
             },
           },
         },
@@ -155,7 +155,16 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
             };
           });
 
-          return { exerciseId: ex.id, name: ex.name, sets, burndown: null, notes: '', skipped: false };
+          return {
+            exerciseId: ex.id,
+            name: ex.name,
+            sets,
+            burndown: null,
+            notes: '',
+            skipped: false,
+            targetRepMin: ex.targetRepMin,
+            targetRepMax: ex.targetRepMax,
+          };
         });
 
       const session: WorkoutSession = {
@@ -340,6 +349,20 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
         };
       });
 
+      // Inherit the target rep range from the matching day template, if any.
+      let targetRepMin: number | null = null;
+      let targetRepMax: number | null = null;
+      if (exerciseId) {
+        for (const dayId of state.dayOrder) {
+          const tpl = state.days[dayId].exercises[exerciseId];
+          if (tpl) {
+            targetRepMin = tpl.targetRepMin;
+            targetRepMax = tpl.targetRepMax;
+            break;
+          }
+        }
+      }
+
       const newExercise: SessionExercise = {
         exerciseId: exerciseId ?? generateId(),
         name,
@@ -347,6 +370,8 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
         burndown: null,
         notes: '',
         skipped: false,
+        targetRepMin,
+        targetRepMax,
       };
 
       return {

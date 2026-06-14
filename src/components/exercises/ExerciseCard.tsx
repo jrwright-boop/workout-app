@@ -4,6 +4,7 @@ import { useWorkout } from '../../hooks/useWorkout';
 import { useLastSession } from '../../hooks/useExerciseHistory';
 import { LastSessionBadge } from '../history/LastSessionBadge';
 import { HistoryView } from '../history/HistoryView';
+import { formatRepRange } from '../../utils/repRange';
 import './ExerciseCard.css';
 
 interface ExerciseCardProps {
@@ -22,6 +23,7 @@ export const ExerciseCard = memo(function ExerciseCard({
   const { dispatch } = useWorkout();
   const lastSession = useLastSession(exercise.id);
   const [showHistory, setShowHistory] = useState(false);
+  const targetRange = formatRepRange(exercise.targetRepMin, exercise.targetRepMax);
 
   return (
     <>
@@ -39,6 +41,7 @@ export const ExerciseCard = memo(function ExerciseCard({
           </button>
           <div className="exercise-meta">
             <span className="set-count">{exercise.defaultSetCount}s</span>
+            {targetRange && <span className="target-badge">{targetRange}</span>}
           </div>
           <div className="exercise-actions">
             <button

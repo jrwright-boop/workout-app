@@ -78,5 +78,27 @@ function migrate(state: AppState): AppState {
     state.schemaVersion = 2;
   }
 
+  if (state.schemaVersion < 3) {
+    // Add target rep range fields (default: no target) to all templates.
+    for (const dayId of Object.keys(state.days)) {
+      const day = state.days[dayId];
+      for (const exId of Object.keys(day.exercises)) {
+        const ex = day.exercises[exId];
+        if (ex.targetRepMin === undefined) ex.targetRepMin = null;
+        if (ex.targetRepMax === undefined) ex.targetRepMax = null;
+      }
+    }
+
+    // Backfill the active session's exercises too.
+    if (state.activeSession) {
+      for (const ex of state.activeSession.exercises) {
+        if (ex.targetRepMin === undefined) ex.targetRepMin = null;
+        if (ex.targetRepMax === undefined) ex.targetRepMax = null;
+      }
+    }
+
+    state.schemaVersion = 3;
+  }
+
   return state;
 }

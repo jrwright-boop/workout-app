@@ -42,6 +42,16 @@
   color: white;
 }
 
+.check-btn--hit-top.check-btn--done {
+  background: var(--success);
+  border-color: var(--success);
+}
+
+.numeric-input--hit-top {
+  color: var(--success);
+  font-weight: 700;
+}
+
 .remove-set-btn {
   width: 32px;
   height: 32px;

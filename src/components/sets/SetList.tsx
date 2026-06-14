@@ -2,6 +2,7 @@ import { useWorkout } from '../../hooks/useWorkout';
 import type { SessionExercise } from '../../types';
 import { SetRow } from './SetRow';
 import { BurndownSets } from './BurndownSets';
+import { formatRepRange } from '../../utils/repRange';
 import './SetList.css';
 
 interface SetListProps {
@@ -13,6 +14,7 @@ interface SetListProps {
 export function SetList({ exercise, exerciseIndex, onSetCompleted }: SetListProps) {
   const { state, dispatch } = useWorkout();
   const unit = state.unit;
+  const targetRange = formatRepRange(exercise.targetRepMin, exercise.targetRepMax);
 
   return (
     <div className="set-list">
@@ -21,6 +23,9 @@ export function SetList({ exercise, exerciseIndex, onSetCompleted }: SetListProp
         <span className="set-list-label">Weight</span>
         <span></span>
         <span className="set-list-label">Reps</span>
+        {targetRange && (
+          <span className="set-list-target">Target {targetRange}</span>
+        )}
       </div>
 
       {exercise.sets.map((set, setIndex) => (
@@ -29,6 +34,7 @@ export function SetList({ exercise, exerciseIndex, onSetCompleted }: SetListProp
           index={setIndex}
           set={set}
           unit={unit}
+          targetRepMax={exercise.targetRepMax}
           onUpdateWeight={value => dispatch({
             type: 'UPDATE_SET',
             payload: { exerciseIndex, setIndex, field: 'weight', value },
