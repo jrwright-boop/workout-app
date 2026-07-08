@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Modal } from '../common/Modal';
 import { useWorkout } from '../../hooks/useWorkout';
-import type { ExerciseId, SessionExercise } from '../../types';
+import { wasPerformed } from '../../utils/exerciseHistory';
+import type { DayId, ExerciseId, SessionExercise } from '../../types';
 import './ExerciseForm.css';
 import './AddSessionExerciseForm.css';
 
@@ -60,10 +61,12 @@ export function AddSessionExerciseForm({ open, onClose }: AddSessionExerciseForm
     }
 
     // Walk history once: attach lastEx to matching templates, and capture
-    // one-off exercises (no template) as name-only suggestions.
+    // one-off exercises (no template) as name-only suggestions. Skipped or
+    // empty entries carry no data and are ignored.
     const oneOffs = new Map<string, Suggestion>();
     for (const past of state.history) {
       for (const ex of past.exercises) {
+        if (!wasPerformed(ex)) continue;
         const tpl = templates.get(ex.exerciseId);
         if (tpl) {
           if (!tpl.lastEx) tpl.lastEx = ex;
@@ -107,6 +110,23 @@ export function AddSessionExerciseForm({ open, onClose }: AddSessionExerciseForm
     return knownExercises.find(e => e.name.toLowerCase() === q) ?? null;
   }, [knownExercises, name]);
 
+  // Days whose plan still has exercises not in the current session — for
+  // doing a missed day's workout alongside (or instead of) today's plan.
+  const importableDays = useMemo(() => {
+    if (!session) return [];
+    const currentIds = new Set(session.exercises.map(e => e.exerciseId));
+    return state.dayOrder
+      .map(dayId => {
+        const day = state.days[dayId];
+        const count = day.exerciseOrder
+          .map(eid => day.exercises[eid])
+          .filter(ex => !ex.skipped && !currentIds.has(ex.id))
+          .length;
+        return { dayId: dayId as DayId, name: day.name, count };
+      })
+      .filter(d => d.count > 0);
+  }, [session, state.dayOrder, state.days]);
+
   const handleClose = () => {
     setName('');
     setSetCount(3);
@@ -131,6 +151,11 @@ export function AddSessionExerciseForm({ open, onClose }: AddSessionExerciseForm
         defaultSetCount: setCount,
       },
     });
+    handleClose();
+  };
+
+  const handleImportDay = (dayId: DayId) => {
+    dispatch({ type: 'ADD_DAY_TO_SESSION', payload: { dayId } });
     handleClose();
   };
 
@@ -193,6 +218,25 @@ export function AddSessionExerciseForm({ open, onClose }: AddSessionExerciseForm
         <button className="btn btn--accent btn--full" onClick={handleSave} disabled={!name.trim()}>
           Add Exercise
         </button>
+
+        {importableDays.length > 0 && (
+          <div className="day-import">
+            <span className="day-import-label">Or add a whole day&apos;s plan</span>
+            {importableDays.map(d => (
+              <button
+                key={d.dayId}
+                type="button"
+                className="day-import-item"
+                onClick={() => handleImportDay(d.dayId)}
+              >
+                <span className="day-import-name">{d.name}</span>
+                <span className="day-import-meta">
+                  +{d.count} exercise{d.count === 1 ? '' : 's'}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </Modal>
   );

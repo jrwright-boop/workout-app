@@ -90,6 +90,7 @@ export type WorkoutAction =
   | { type: 'SET_UNIT'; payload: { unit: 'lbs' | 'kg' } }
   | { type: 'REORDER_SESSION_EXERCISES'; payload: { exercises: SessionExercise[] } }
   | { type: 'TOGGLE_SESSION_EXERCISE_SKIP'; payload: { exerciseIndex: number } }
-  | { type: 'ADD_SESSION_EXERCISE'; payload: { exerciseId: ExerciseId | null; name: string; defaultSetCount: number } };
+  | { type: 'ADD_SESSION_EXERCISE'; payload: { exerciseId: ExerciseId | null; name: string; defaultSetCount: number } }
+  | { type: 'ADD_DAY_TO_SESSION'; payload: { dayId: DayId } };
 
 export const SCHEMA_VERSION = 3;

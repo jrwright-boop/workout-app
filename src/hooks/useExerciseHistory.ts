@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useWorkout } from './useWorkout';
 import type { ExerciseId, SessionExercise, WorkoutSession } from '../types';
+import { findLastPerformed, wasPerformed } from '../utils/exerciseHistory';
 
 export interface ExerciseHistoryEntry {
   session: WorkoutSession;
@@ -13,7 +14,9 @@ export function useExerciseHistory(exerciseId: ExerciseId): ExerciseHistoryEntry
   return useMemo(() => {
     return state.history
       .map(session => {
-        const exercise = session.exercises.find(e => e.exerciseId === exerciseId);
+        // Ignore entries where the exercise was skipped or left empty — they
+        // hold no data for charts or "Last:" displays.
+        const exercise = session.exercises.find(e => e.exerciseId === exerciseId && wasPerformed(e));
         if (!exercise) return null;
         return { session, exercise };
       })
@@ -30,11 +33,6 @@ export function useLastSession(exerciseId: ExerciseId, exerciseName?: string): E
   return useMemo(() => {
     if (history[0]) return history[0];
     if (!exerciseName) return null;
-    const nameLower = exerciseName.toLowerCase();
-    for (const session of state.history) {
-      const exercise = session.exercises.find(e => e.name.toLowerCase() === nameLower);
-      if (exercise) return { session, exercise };
-    }
-    return null;
+    return findLastPerformed(state.history, null, exerciseName);
   }, [history, exerciseName, state.history]);
 }
