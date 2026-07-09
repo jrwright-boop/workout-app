@@ -27,3 +27,26 @@
 .settings-import-btn:active {
   background: var(--border);
 }
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-row-label {
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.settings-rest-value {
+  min-width: 52px;
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-backup-status {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}

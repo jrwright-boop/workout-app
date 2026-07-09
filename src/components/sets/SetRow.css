@@ -1,7 +1,7 @@
 .set-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 6px 0;
 }
 
@@ -10,20 +10,74 @@
 }
 
 .set-number {
-  width: 24px;
+  width: 18px;
   text-align: center;
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.input-stepper {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.input-stepper:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.2);
+}
+
+.input-stepper-btn {
+  width: 30px;
+  height: 46px;
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.input-stepper-btn:active {
+  background: var(--border);
+}
+
+.input-stepper .numeric-input {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  height: 46px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 0 2px;
+}
+
+.input-stepper .numeric-input:focus {
+  box-shadow: none;
 }
 
 .set-x {
   color: var(--text-muted);
   font-size: 0.9rem;
+  width: 12px;
+  text-align: center;
+  flex-shrink: 0;
 }
 
 .check-btn {
-  width: 44px;
+  width: 42px;
   height: 44px;
   border-radius: 10px;
   border: 2px solid var(--border);
@@ -53,8 +107,9 @@
 }
 
 .remove-set-btn {
-  width: 32px;
+  width: 24px;
   height: 32px;
+  padding: 0;
   border: none;
   background: none;
   color: var(--text-muted);

@@ -1,11 +1,31 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { WorkoutProvider } from './context/WorkoutContext';
 import { AppShell } from './components/layout/AppShell';
 import { DayTabBar } from './components/days/DayTabBar';
 import { ExerciseList } from './components/exercises/ExerciseList';
 import { ActiveSession } from './ActiveSession';
 import { useWorkout } from './hooks/useWorkout';
+import { registerServiceWorker } from './swUpdate';
 import './App.css';
+
+function UpdateToast() {
+  const [applyUpdate, setApplyUpdate] = useState<(() => void) | null>(null);
+
+  useEffect(() => {
+    registerServiceWorker(apply => setApplyUpdate(() => apply));
+  }, []);
+
+  if (!applyUpdate) return null;
+
+  return (
+    <div className="update-toast">
+      <span>Update available</span>
+      <button className="update-toast-btn" onClick={applyUpdate}>
+        Reload
+      </button>
+    </div>
+  );
+}
 
 function CrashRecovery() {
   const { state, dispatch } = useWorkout();
@@ -83,6 +103,7 @@ function App() {
         <CrashRecovery />
         <WorkoutContent />
       </AppShell>
+      <UpdateToast />
     </WorkoutProvider>
   );
 }

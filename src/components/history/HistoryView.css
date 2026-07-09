@@ -76,3 +76,62 @@
   color: var(--text-muted);
   padding: 20px;
 }
+
+.history-session-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.history-session-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.history-action-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.history-action-btn:active {
+  background: var(--border);
+}
+
+.history-action-btn--active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.history-action-btn--danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.history-set-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0;
+}
+
+.history-set-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.history-set-edit-num {
+  width: 20px;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}

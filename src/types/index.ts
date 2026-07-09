@@ -62,6 +62,8 @@ export interface AppState {
   activeSession: WorkoutSession | null;
   history: WorkoutSession[];
   unit: 'lbs' | 'kg';
+  /** Default rest timer duration in seconds. */
+  restSeconds: number;
 }
 
 export type WorkoutAction =
@@ -91,6 +93,9 @@ export type WorkoutAction =
   | { type: 'REORDER_SESSION_EXERCISES'; payload: { exercises: SessionExercise[] } }
   | { type: 'TOGGLE_SESSION_EXERCISE_SKIP'; payload: { exerciseIndex: number } }
   | { type: 'ADD_SESSION_EXERCISE'; payload: { exerciseId: ExerciseId | null; name: string; defaultSetCount: number } }
-  | { type: 'ADD_DAY_TO_SESSION'; payload: { dayId: DayId } };
+  | { type: 'ADD_DAY_TO_SESSION'; payload: { dayId: DayId } }
+  | { type: 'SET_REST_SECONDS'; payload: { seconds: number } }
+  | { type: 'DELETE_HISTORY_SESSION'; payload: { sessionId: SessionId } }
+  | { type: 'UPDATE_HISTORY_SET'; payload: { sessionId: SessionId; exerciseIndex: number; setIndex: number; field: 'weight' | 'reps'; value: number | null } };
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;

@@ -36,7 +36,9 @@ export function ExerciseChart({ history }: ExerciseChartProps) {
       }
 
       return {
-        date: formatDate(session.date),
+        // startedAt matches the timestamps shown in the history list;
+        // session.date is a UTC calendar date and can drift a day off local time.
+        date: formatDate(session.startedAt),
         e1rm: bestE1RM || undefined,
         volume: totalVolume || undefined,
       };

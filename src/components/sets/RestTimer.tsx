@@ -7,19 +7,25 @@ interface RestTimerProps {
 }
 
 export function RestTimer({ onDismiss, defaultSeconds = 90 }: RestTimerProps) {
+  // Count down against a wall-clock deadline instead of interval ticks, so
+  // the timer stays correct after the phone is locked or the tab suspended.
+  const endRef = useRef(0);
   const [remaining, setRemaining] = useState(defaultSeconds);
   const [total, setTotal] = useState(defaultSeconds);
   const hasAlertedRef = useRef(false);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setRemaining(prev => {
-        if (prev <= 0) return 0;
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
+    endRef.current = Date.now() + defaultSeconds * 1000;
+    const tick = () => {
+      setRemaining(Math.max(0, Math.round((endRef.current - Date.now()) / 1000)));
+    };
+    const interval = setInterval(tick, 250);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, [defaultSeconds]);
 
   useEffect(() => {
     if (remaining === 0 && !hasAlertedRef.current) {
@@ -46,7 +52,8 @@ export function RestTimer({ onDismiss, defaultSeconds = 90 }: RestTimerProps) {
   }, [remaining]);
 
   const adjust = (delta: number) => {
-    setRemaining(prev => Math.max(0, prev + delta));
+    endRef.current = Math.max(Date.now(), endRef.current + delta * 1000);
+    setRemaining(Math.max(0, Math.round((endRef.current - Date.now()) / 1000)));
     setTotal(prev => Math.max(0, prev + delta));
     if (hasAlertedRef.current && delta > 0) {
       hasAlertedRef.current = false;

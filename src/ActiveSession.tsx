@@ -131,6 +131,8 @@ export function ActiveSession() {
   const { state, dispatch } = useWorkout();
   const session = state.activeSession;
   const [showRestTimer, setShowRestTimer] = useState(false);
+  // Bumped on every completed set so the RestTimer remounts with a full countdown.
+  const [restTimerKey, setRestTimerKey] = useState(0);
   const [showAddExercise, setShowAddExercise] = useState(false);
 
   if (!session) return null;
@@ -173,7 +175,10 @@ export function ActiveSession() {
                 key={exercise.exerciseId}
                 exercise={exercise}
                 exerciseIndex={index}
-                onSetCompleted={() => setShowRestTimer(true)}
+                onSetCompleted={() => {
+                  setShowRestTimer(true);
+                  setRestTimerKey(k => k + 1);
+                }}
               />
             ))}
           </div>
@@ -211,7 +216,11 @@ export function ActiveSession() {
       </div>
 
       {showRestTimer && (
-        <RestTimer onDismiss={() => setShowRestTimer(false)} />
+        <RestTimer
+          key={restTimerKey}
+          onDismiss={() => setShowRestTimer(false)}
+          defaultSeconds={state.restSeconds}
+        />
       )}
 
       <AddSessionExerciseForm

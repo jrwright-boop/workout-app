@@ -228,6 +228,23 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
           ? currentSet.repsFromLastSession
           : currentSet.reps,
       };
+
+      // Carry the completed weight forward: later uncompleted sets that are
+      // still at their pre-filled value (or empty) follow the change, while
+      // deliberately edited sets are left alone.
+      const completedWeight = sets[setIndex].weight;
+      if (nowCompleting && completedWeight != null) {
+        const lastEx = findLastPerformed(state.history, ex.exerciseId, ex.name)?.exercise;
+        for (let j = setIndex + 1; j < sets.length; j++) {
+          const s = sets[j];
+          if (s.completed) continue;
+          const prefill = lastEx?.sets[j]?.weight ?? null;
+          if ((s.weight === null || s.weight === prefill) && s.weight !== completedWeight) {
+            sets[j] = { ...s, weight: completedWeight };
+          }
+        }
+      }
+
       ex.sets = sets;
       exercises[exerciseIndex] = ex;
       return { ...state, activeSession: { ...state.activeSession, exercises } };
@@ -393,6 +410,29 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
           exercises: [...state.activeSession.exercises, ...added],
         },
       };
+    }
+
+    case 'SET_REST_SECONDS':
+      return { ...state, restSeconds: action.payload.seconds };
+
+    case 'DELETE_HISTORY_SESSION': {
+      const { sessionId } = action.payload;
+      return { ...state, history: state.history.filter(s => s.id !== sessionId) };
+    }
+
+    case 'UPDATE_HISTORY_SET': {
+      const { sessionId, exerciseIndex, setIndex, field, value } = action.payload;
+      const history = state.history.map(session => {
+        if (session.id !== sessionId) return session;
+        const exercises = [...session.exercises];
+        const ex = { ...exercises[exerciseIndex] };
+        const sets = [...ex.sets];
+        sets[setIndex] = { ...sets[setIndex], [field]: value };
+        ex.sets = sets;
+        exercises[exerciseIndex] = ex;
+        return { ...session, exercises };
+      });
+      return { ...state, history };
     }
 
     default:

@@ -1,7 +1,9 @@
-const CACHE_NAME = 'workout-v1';
+// __BUILD_VERSION__ is replaced with a unique value at build time (see
+// vite.config.ts). A byte-different sw.js is what makes the browser install
+// the new worker and fire `updatefound`, driving the in-app update toast.
+const CACHE_NAME = 'workout-__BUILD_VERSION__';
 
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(['./']))
   );
@@ -14,6 +16,13 @@ self.addEventListener('activate', (event) => {
     )
   );
   self.clients.claim();
+});
+
+// The page posts this when the user taps "Reload" on the update toast.
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('fetch', (event) => {

@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { Modal } from '../common/Modal';
 import { useWorkout } from '../../hooks/useWorkout';
 import { useExerciseHistory } from '../../hooks/useExerciseHistory';
 import { ExerciseChart } from './ExerciseChart';
+import { NumericInput } from '../common/NumericInput';
 import { formatDateTime } from '../../utils/date';
 import type { ExerciseId, WorkoutSession } from '../../types';
 import './HistoryView.css';
@@ -14,13 +16,35 @@ interface HistoryViewProps {
 }
 
 function SessionSummary({ session }: { session: WorkoutSession }) {
+  const { state, dispatch } = useWorkout();
+  const [editing, setEditing] = useState(false);
+
+  const handleDelete = () => {
+    if (confirm(`Delete this ${session.dayName} workout from ${formatDateTime(session.startedAt)}? This cannot be undone.`)) {
+      dispatch({ type: 'DELETE_HISTORY_SESSION', payload: { sessionId: session.id } });
+    }
+  };
+
   return (
     <div className="history-session">
       <div className="history-session-header">
-        <span className="history-day-name">{session.dayName}</span>
-        <span className="history-date">{formatDateTime(session.startedAt)}</span>
+        <div className="history-session-title">
+          <span className="history-day-name">{session.dayName}</span>
+          <span className="history-date">{formatDateTime(session.startedAt)}</span>
+        </div>
+        <div className="history-session-actions">
+          <button
+            className={`history-action-btn ${editing ? 'history-action-btn--active' : ''}`}
+            onClick={() => setEditing(e => !e)}
+          >
+            {editing ? 'Done' : 'Edit'}
+          </button>
+          <button className="history-action-btn history-action-btn--danger" onClick={handleDelete}>
+            Delete
+          </button>
+        </div>
       </div>
-      {session.exercises.map((ex, i) => {
+      {session.exercises.map((ex, exerciseIndex) => {
         const setsSummary = ex.sets
           .filter(s => s.weight != null && s.reps != null)
           .map(s => `${s.weight}x${s.reps}`)
@@ -32,9 +56,36 @@ function SessionSummary({ session }: { session: WorkoutSession }) {
           .join(', ');
 
         return (
-          <div key={i} className="history-exercise">
+          <div key={exerciseIndex} className="history-exercise">
             <span className="history-ex-name">{ex.name}</span>
-            {setsSummary && <span className="history-ex-sets">{setsSummary}</span>}
+            {editing ? (
+              <div className="history-set-editor">
+                {ex.sets.map((set, setIndex) => (
+                  <div key={setIndex} className="history-set-edit-row">
+                    <span className="history-set-edit-num">{setIndex + 1}</span>
+                    <NumericInput
+                      value={set.weight}
+                      onChange={value => dispatch({
+                        type: 'UPDATE_HISTORY_SET',
+                        payload: { sessionId: session.id, exerciseIndex, setIndex, field: 'weight', value },
+                      })}
+                      placeholder={state.unit}
+                    />
+                    <span className="set-x">&times;</span>
+                    <NumericInput
+                      value={set.reps}
+                      onChange={value => dispatch({
+                        type: 'UPDATE_HISTORY_SET',
+                        payload: { sessionId: session.id, exerciseIndex, setIndex, field: 'reps', value },
+                      })}
+                      placeholder="reps"
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              setsSummary && <span className="history-ex-sets">{setsSummary}</span>
+            )}
             {dropsSummary && <span className="history-ex-drops">Drops: {dropsSummary}</span>}
             {ex.notes && <span className="history-ex-notes">{ex.notes}</span>}
           </div>

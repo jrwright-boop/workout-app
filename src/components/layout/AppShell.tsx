@@ -2,12 +2,15 @@ import { useState, type ReactNode } from 'react';
 import { useWorkout } from '../../hooks/useWorkout';
 import { HistoryView } from '../history/HistoryView';
 import { SettingsModal } from './SettingsModal';
+import { isBackupOverdue } from '../../storage/localStorage';
 import './AppShell.css';
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { state, dispatch } = useWorkout();
   const [showHistory, setShowHistory] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  // Re-evaluated when the settings modal closes (i.e. after a possible export).
+  const backupOverdue = !showSettings && isBackupOverdue(state.history.length);
 
   const toggleUnit = () => {
     dispatch({ type: 'SET_UNIT', payload: { unit: state.unit === 'lbs' ? 'kg' : 'lbs' } });
@@ -35,9 +38,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             </svg>
           </button>
           <button
-            className="icon-btn"
+            className={`icon-btn ${backupOverdue ? 'icon-btn--attention' : ''}`}
             onClick={() => setShowSettings(true)}
-            title="Settings"
+            title={backupOverdue ? 'Settings — backup recommended' : 'Settings'}
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3" />

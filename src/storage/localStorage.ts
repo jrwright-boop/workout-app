@@ -12,6 +12,7 @@ export function getInitialState(): AppState {
     activeSession: null,
     history: [],
     unit: 'lbs',
+    restSeconds: 90,
   };
 }
 
@@ -34,7 +35,8 @@ export function saveState(state: AppState): void {
   }
 }
 
-function migrate(state: AppState): AppState {
+// Exported so backup imports run through the same migrations as loads.
+export function migrate(state: AppState): AppState {
   if (!state.schemaVersion) {
     state.schemaVersion = 1;
   }
@@ -100,5 +102,43 @@ function migrate(state: AppState): AppState {
     state.schemaVersion = 3;
   }
 
+  if (state.schemaVersion < 4) {
+    // Add configurable rest timer duration.
+    if (state.restSeconds === undefined) state.restSeconds = 90;
+
+    state.schemaVersion = 4;
+  }
+
   return state;
+}
+
+// Backup bookkeeping lives outside AppState so it isn't itself part of the
+// exported backup and survives a data import.
+const LAST_BACKUP_KEY = 'workout-app-last-backup';
+
+export function getLastBackupDate(): string | null {
+  try {
+    return localStorage.getItem(LAST_BACKUP_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function recordBackup(): void {
+  try {
+    localStorage.setItem(LAST_BACKUP_KEY, new Date().toISOString());
+  } catch {
+    // Storage unavailable
+  }
+}
+
+const BACKUP_OVERDUE_DAYS = 30;
+
+/** True when the user has meaningful data and hasn't exported it recently. */
+export function isBackupOverdue(historyLength: number): boolean {
+  if (historyLength < 3) return false;
+  const last = getLastBackupDate();
+  if (!last) return true;
+  const ageMs = Date.now() - new Date(last).getTime();
+  return ageMs > BACKUP_OVERDUE_DAYS * 24 * 60 * 60 * 1000;
 }

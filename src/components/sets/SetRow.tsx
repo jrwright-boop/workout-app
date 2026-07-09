@@ -30,17 +30,53 @@ export const SetRow = memo(function SetRow({
   const hasPrefill = set.reps === null && set.repsFromLastSession !== null;
   const hitTop = setHitTop(set.reps, set.completed, targetRepMax);
 
+  const weightStep = unit === 'kg' ? 2.5 : 5;
+  // Stepping reps from empty starts at the last-session placeholder.
+  const repsBase = set.reps ?? set.repsFromLastSession ?? 0;
+
   return (
     <div className={`set-row ${set.completed ? 'set-row--completed' : ''} ${hitTop ? 'set-row--hit-top' : ''}`}>
       <span className="set-number">{index + 1}</span>
-      <NumericInput value={set.weight} onChange={onUpdateWeight} placeholder={unit} />
+      <div className="input-stepper">
+        <button
+          type="button"
+          className="input-stepper-btn"
+          onClick={() => onUpdateWeight(Math.max(0, (set.weight ?? 0) - weightStep))}
+        >
+          &minus;
+        </button>
+        <NumericInput value={set.weight} onChange={onUpdateWeight} placeholder={unit} />
+        <button
+          type="button"
+          className="input-stepper-btn"
+          onClick={() => onUpdateWeight((set.weight ?? 0) + weightStep)}
+        >
+          +
+        </button>
+      </div>
       <span className="set-x">&times;</span>
-      <NumericInput
-        value={set.reps}
-        onChange={onUpdateReps}
-        placeholder={hasPrefill ? String(set.repsFromLastSession) : 'reps'}
-        className={`${hasPrefill ? 'numeric-input--prefilled' : ''} ${hitTop ? 'numeric-input--hit-top' : ''}`}
-      />
+      <div className="input-stepper">
+        <button
+          type="button"
+          className="input-stepper-btn"
+          onClick={() => onUpdateReps(Math.max(0, repsBase - 1))}
+        >
+          &minus;
+        </button>
+        <NumericInput
+          value={set.reps}
+          onChange={onUpdateReps}
+          placeholder={hasPrefill ? String(set.repsFromLastSession) : 'reps'}
+          className={`${hasPrefill ? 'numeric-input--prefilled' : ''} ${hitTop ? 'numeric-input--hit-top' : ''}`}
+        />
+        <button
+          type="button"
+          className="input-stepper-btn"
+          onClick={() => onUpdateReps(repsBase + 1)}
+        >
+          +
+        </button>
+      </div>
       <button
         className={`check-btn ${set.completed ? 'check-btn--done' : ''} ${hitTop ? 'check-btn--hit-top' : ''}`}
         onClick={onToggleComplete}
