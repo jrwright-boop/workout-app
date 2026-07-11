@@ -1,12 +1,17 @@
-import { useState } from 'react';
+import { lazy, Suspense, useMemo, useState } from 'react';
 import { Modal } from '../common/Modal';
 import { useWorkout } from '../../hooks/useWorkout';
 import { useExerciseHistory } from '../../hooks/useExerciseHistory';
-import { ExerciseChart } from './ExerciseChart';
 import { NumericInput } from '../common/NumericInput';
 import { formatDateTime } from '../../utils/date';
 import type { ExerciseId, WorkoutSession } from '../../types';
 import './HistoryView.css';
+
+// Recharts is by far the heaviest dependency; load it only when someone
+// actually opens an exercise's history.
+const ExerciseChart = lazy(() =>
+  import('./ExerciseChart').then(m => ({ default: m.ExerciseChart }))
+);
 
 interface HistoryViewProps {
   open: boolean;
@@ -100,7 +105,9 @@ function ExerciseHistoryContent({ exerciseId, exerciseName }: { exerciseId: Exer
 
   return (
     <div className="history-content">
-      <ExerciseChart history={history} />
+      <Suspense fallback={<p className="history-empty">Loading charts…</p>}>
+        <ExerciseChart history={history} />
+      </Suspense>
 
       {history.length === 0 ? (
         <p className="history-empty">No history yet for {exerciseName}</p>
@@ -134,14 +141,35 @@ function ExerciseHistoryContent({ exerciseId, exerciseName }: { exerciseId: Exer
 
 function FullHistoryContent() {
   const { state } = useWorkout();
+  const [query, setQuery] = useState('');
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return state.history;
+    return state.history.filter(session =>
+      session.dayName.toLowerCase().includes(q) ||
+      session.exercises.some(ex => ex.name.toLowerCase().includes(q))
+    );
+  }, [state.history, query]);
 
   return (
     <div className="history-content">
+      {state.history.length > 0 && (
+        <input
+          type="text"
+          className="form-input"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="Search by day or exercise..."
+        />
+      )}
       {state.history.length === 0 ? (
         <p className="history-empty">No workouts completed yet</p>
+      ) : filtered.length === 0 ? (
+        <p className="history-empty">No workouts match &ldquo;{query.trim()}&rdquo;</p>
       ) : (
         <div className="history-list">
-          {state.history.map(session => (
+          {filtered.map(session => (
             <SessionSummary key={session.id} session={session} />
           ))}
         </div>

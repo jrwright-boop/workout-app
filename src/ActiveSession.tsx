@@ -7,7 +7,7 @@ import { SetList } from './components/sets/SetList';
 import { RestTimer } from './components/sets/RestTimer';
 import { AddSessionExerciseForm } from './components/exercises/AddSessionExerciseForm';
 import { useLastSession } from './hooks/useExerciseHistory';
-import type { SessionExercise } from './types';
+import type { SessionExercise, WorkoutSession } from './types';
 import { formatDate, formatElapsed } from './utils/date';
 import { hitTopOfRange } from './utils/repRange';
 import './ActiveSession.css';
@@ -127,7 +127,7 @@ function WorkoutTimer({ startedAt }: { startedAt: string }) {
   return <span className="session-timer">{formatElapsed(elapsed)}</span>;
 }
 
-export function ActiveSession() {
+export function ActiveSession({ onFinished }: { onFinished?: (session: WorkoutSession) => void }) {
   const { state, dispatch } = useWorkout();
   const session = state.activeSession;
   const [showRestTimer, setShowRestTimer] = useState(false);
@@ -197,6 +197,7 @@ export function ActiveSession() {
           className="btn btn--accent btn--full btn--large"
           onClick={() => {
             if (confirm('Finish this workout?')) {
+              onFinished?.(session);
               dispatch({ type: 'FINISH_SESSION' });
             }
           }}

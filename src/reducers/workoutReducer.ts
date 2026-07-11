@@ -46,7 +46,8 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
 
     case 'DELETE_DAY': {
       const { dayId } = action.payload;
-      const { [dayId]: _, ...remainingDays } = state.days;
+      const remainingDays = { ...state.days };
+      delete remainingDays[dayId];
       const newOrder = state.dayOrder.filter(id => id !== dayId);
       return {
         ...state,
@@ -103,7 +104,8 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
     case 'DELETE_EXERCISE': {
       const { dayId, exerciseId } = action.payload;
       const day = state.days[dayId];
-      const { [exerciseId]: _, ...remainingExercises } = day.exercises;
+      const remainingExercises = { ...day.exercises };
+      delete remainingExercises[exerciseId];
       return {
         ...state,
         days: {

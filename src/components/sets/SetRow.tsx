@@ -1,8 +1,16 @@
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import type { SetEntry } from '../../types';
 import { NumericInput } from '../common/NumericInput';
 import { setHitTop } from '../../utils/repRange';
 import './SetRow.css';
+
+function repChipValues(base: number): number[] {
+  const values: number[] = [];
+  for (let v = base - 2; v <= base + 2; v++) {
+    if (v >= 1) values.push(v);
+  }
+  return values;
+}
 
 interface SetRowProps {
   index: number;
@@ -27,6 +35,7 @@ export const SetRow = memo(function SetRow({
   onRemove,
   canRemove,
 }: SetRowProps) {
+  const [repsFocused, setRepsFocused] = useState(false);
   const hasPrefill = set.reps === null && set.repsFromLastSession !== null;
   const hitTop = setHitTop(set.reps, set.completed, targetRepMax);
 
@@ -34,7 +43,13 @@ export const SetRow = memo(function SetRow({
   // Stepping reps from empty starts at the last-session placeholder.
   const repsBase = set.reps ?? set.repsFromLastSession ?? 0;
 
+  // Quick-pick values around last time's reps (or the target ceiling).
+  const chipCenter = set.reps ?? set.repsFromLastSession ?? targetRepMax;
+  const chips = repsFocused && chipCenter != null ? repChipValues(chipCenter) : [];
+  const chipActive = set.reps ?? set.repsFromLastSession;
+
   return (
+    <>
     <div className={`set-row ${set.completed ? 'set-row--completed' : ''} ${hitTop ? 'set-row--hit-top' : ''}`}>
       <span className="set-number">{index + 1}</span>
       <div className="input-stepper">
@@ -68,6 +83,8 @@ export const SetRow = memo(function SetRow({
           onChange={onUpdateReps}
           placeholder={hasPrefill ? String(set.repsFromLastSession) : 'reps'}
           className={`${hasPrefill ? 'numeric-input--prefilled' : ''} ${hitTop ? 'numeric-input--hit-top' : ''}`}
+          onFocus={() => setRepsFocused(true)}
+          onBlur={() => setRepsFocused(false)}
         />
         <button
           type="button"
@@ -93,5 +110,21 @@ export const SetRow = memo(function SetRow({
         </button>
       )}
     </div>
+    {chips.length > 0 && (
+      <div className="rep-chips">
+        {chips.map(v => (
+          <button
+            key={v}
+            type="button"
+            className={`rep-chip ${v === chipActive ? 'rep-chip--active' : ''}`}
+            onMouseDown={e => e.preventDefault()}
+            onClick={() => onUpdateReps(v)}
+          >
+            {v}
+          </button>
+        ))}
+      </div>
+    )}
+    </>
   );
 });

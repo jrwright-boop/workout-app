@@ -6,9 +6,11 @@ interface NumericInputProps {
   onChange: (value: number | null) => void;
   placeholder?: string;
   className?: string;
+  onFocus?: () => void;
+  onBlur?: () => void;
 }
 
-export function NumericInput({ value, onChange, placeholder, className = '' }: NumericInputProps) {
+export function NumericInput({ value, onChange, placeholder, className = '', onFocus, onBlur }: NumericInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   return (
@@ -32,7 +34,9 @@ export function NumericInput({ value, onChange, placeholder, className = '' }: N
       }}
       onFocus={() => {
         inputRef.current?.select();
+        onFocus?.();
       }}
+      onBlur={onBlur}
     />
   );
 }

@@ -4,8 +4,10 @@ import { AppShell } from './components/layout/AppShell';
 import { DayTabBar } from './components/days/DayTabBar';
 import { ExerciseList } from './components/exercises/ExerciseList';
 import { ActiveSession } from './ActiveSession';
+import { WorkoutSummaryModal } from './components/summary/WorkoutSummaryModal';
 import { useWorkout } from './hooks/useWorkout';
 import { registerServiceWorker } from './swUpdate';
+import type { WorkoutSession } from './types';
 import './App.css';
 
 function UpdateToast() {
@@ -64,13 +66,18 @@ function CrashRecovery() {
 function WorkoutContent() {
   const { state, dispatch } = useWorkout();
   const activeDay = state.activeDayId ? state.days[state.activeDayId] : null;
+  const [finishedSession, setFinishedSession] = useState<WorkoutSession | null>(null);
 
   if (state.activeSession) {
-    return <ActiveSession />;
+    return <ActiveSession onFinished={setFinishedSession} />;
   }
 
   return (
     <>
+      <WorkoutSummaryModal
+        session={finishedSession}
+        onClose={() => setFinishedSession(null)}
+      />
       <DayTabBar />
       {activeDay ? (
         <div className="day-content">

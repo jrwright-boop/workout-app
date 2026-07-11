@@ -1,14 +1,7 @@
-import { createContext, useReducer, useEffect, type ReactNode } from 'react';
-import type { AppState, WorkoutAction } from '../types';
+import { useReducer, useEffect, type ReactNode } from 'react';
 import { workoutReducer } from '../reducers/workoutReducer';
 import { loadState, saveState } from '../storage/localStorage';
-
-interface WorkoutContextValue {
-  state: AppState;
-  dispatch: React.Dispatch<WorkoutAction>;
-}
-
-export const WorkoutContext = createContext<WorkoutContextValue | null>(null);
+import { WorkoutContext } from './workoutContextValue';
 
 export function WorkoutProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(workoutReducer, null, loadState);

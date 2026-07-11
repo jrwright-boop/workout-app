@@ -123,3 +123,30 @@
 .remove-set-btn:active {
   color: var(--danger);
 }
+
+.rep-chips {
+  display: flex;
+  gap: 6px;
+  padding: 2px 0 6px 24px;
+}
+
+.rep-chip {
+  min-width: 40px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 17px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.rep-chip:active {
+  background: var(--border);
+}
+
+.rep-chip--active {
+  border-color: var(--accent);
+  color: var(--accent);
+}

@@ -1,5 +1,5 @@
 import { useContext } from 'react';
-import { WorkoutContext } from '../context/WorkoutContext';
+import { WorkoutContext } from '../context/workoutContextValue';
 
 export function useWorkout() {
   const ctx = useContext(WorkoutContext);
