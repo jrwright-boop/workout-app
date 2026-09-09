@@ -29,7 +29,7 @@ export const ExerciseCard = memo(function ExerciseCard({
     <>
       <div className={`exercise-card ${exercise.skipped ? 'exercise-card--skipped' : ''}`}>
         <div className="exercise-card-header">
-          <button className="drag-handle" {...(dragHandleProps ?? {})}>
+          <button className="drag-handle" aria-label={`Reorder ${exercise.name}`} {...(dragHandleProps ?? {})}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
               <circle cx="9" cy="6" r="2" /><circle cx="15" cy="6" r="2" />
               <circle cx="9" cy="12" r="2" /><circle cx="15" cy="12" r="2" />
@@ -54,6 +54,7 @@ export const ExerciseCard = memo(function ExerciseCard({
             <button className="edit-btn" onClick={onEdit}>Edit</button>
             <button
               className="delete-btn"
+              aria-label={`Delete ${exercise.name}`}
               onClick={() => {
                 if (confirm(`Delete "${exercise.name}"?`)) {
                   dispatch({ type: 'DELETE_EXERCISE', payload: { dayId, exerciseId: exercise.id } });

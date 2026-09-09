@@ -56,6 +56,7 @@ export const SetRow = memo(function SetRow({
         <button
           type="button"
           className="input-stepper-btn"
+          aria-label="Decrease weight"
           onClick={() => onUpdateWeight(Math.max(0, (set.weight ?? 0) - weightStep))}
         >
           &minus;
@@ -64,6 +65,7 @@ export const SetRow = memo(function SetRow({
         <button
           type="button"
           className="input-stepper-btn"
+          aria-label="Increase weight"
           onClick={() => onUpdateWeight((set.weight ?? 0) + weightStep)}
         >
           +
@@ -74,6 +76,7 @@ export const SetRow = memo(function SetRow({
         <button
           type="button"
           className="input-stepper-btn"
+          aria-label="Decrease reps"
           onClick={() => onUpdateReps(Math.max(0, repsBase - 1))}
         >
           &minus;
@@ -89,6 +92,7 @@ export const SetRow = memo(function SetRow({
         <button
           type="button"
           className="input-stepper-btn"
+          aria-label="Increase reps"
           onClick={() => onUpdateReps(repsBase + 1)}
         >
           +
@@ -97,13 +101,15 @@ export const SetRow = memo(function SetRow({
       <button
         className={`check-btn ${set.completed ? 'check-btn--done' : ''} ${hitTop ? 'check-btn--hit-top' : ''}`}
         onClick={onToggleComplete}
+        aria-label={`Set ${index + 1} ${set.completed ? 'completed' : 'not completed'}`}
+        aria-pressed={set.completed}
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="20 6 9 17 4 12" />
         </svg>
       </button>
       {canRemove && (
-        <button className="remove-set-btn" onClick={onRemove}>
+        <button className="remove-set-btn" onClick={onRemove} aria-label={`Remove set ${index + 1}`}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
           </svg>

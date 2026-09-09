@@ -17,7 +17,7 @@ export function LastSessionBadge({ entry }: LastSessionBadgeProps) {
 
   return (
     <div className="last-session-badge">
-      <span className="last-label">Last ({formatDate(session.date)}):</span>
+      <span className="last-label">Last ({formatDate(session.startedAt)}):</span>
       <span className="last-sets">{setsSummary}</span>
     </div>
   );

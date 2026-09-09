@@ -3,6 +3,7 @@ import type { SessionExercise } from '../../types';
 import { SetRow } from './SetRow';
 import { BurndownSets } from './BurndownSets';
 import { formatRepRange } from '../../utils/repRange';
+import { primeAudio } from '../../utils/audio';
 import './SetList.css';
 
 interface SetListProps {
@@ -18,14 +19,16 @@ export function SetList({ exercise, exerciseIndex, onSetCompleted }: SetListProp
 
   return (
     <div className="set-list">
+      {targetRange && (
+        <div className="set-list-target-row">
+          <span className="set-list-target">Target {targetRange}</span>
+        </div>
+      )}
       <div className="set-list-header">
         <span className="set-list-label">Set</span>
         <span className="set-list-label">Weight</span>
         <span></span>
         <span className="set-list-label">Reps</span>
-        {targetRange && (
-          <span className="set-list-target">Target {targetRange}</span>
-        )}
       </div>
 
       {exercise.sets.map((set, setIndex) => (
@@ -45,6 +48,8 @@ export function SetList({ exercise, exerciseIndex, onSetCompleted }: SetListProp
           })}
           onToggleComplete={() => {
             const wasCompleted = set.completed;
+            // This tap is the user gesture that lets the timer beep later (iOS).
+            if (!wasCompleted) primeAudio();
             dispatch({
               type: 'TOGGLE_SET_COMPLETE',
               payload: { exerciseIndex, setIndex },
@@ -83,6 +88,7 @@ export function SetList({ exercise, exerciseIndex, onSetCompleted }: SetListProp
               <div className="stepper stepper--small">
                 <button
                   className="stepper-btn stepper-btn--small"
+                  aria-label="Fewer drop sets"
                   onClick={() => dispatch({
                     type: 'SET_SESSION_DROP_COUNT',
                     payload: { exerciseIndex, count: Math.max(1, exercise.burndown!.drops.length - 1) },
@@ -93,6 +99,7 @@ export function SetList({ exercise, exerciseIndex, onSetCompleted }: SetListProp
                 <span className="stepper-value stepper-value--small">{exercise.burndown.drops.length}</span>
                 <button
                   className="stepper-btn stepper-btn--small"
+                  aria-label="More drop sets"
                   onClick={() => dispatch({
                     type: 'SET_SESSION_DROP_COUNT',
                     payload: { exerciseIndex, count: exercise.burndown!.drops.length + 1 },

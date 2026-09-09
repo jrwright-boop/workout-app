@@ -98,3 +98,27 @@
   padding-right: env(safe-area-inset-right);
   padding-bottom: env(safe-area-inset-bottom);
 }
+
+.storage-warning {
+  background: rgba(255, 69, 58, 0.15);
+  border-bottom: 1px solid var(--danger);
+  color: var(--text);
+  font-size: 0.85rem;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.storage-warning-btn {
+  margin-left: auto;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--danger);
+  background: transparent;
+  color: var(--danger);
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+}

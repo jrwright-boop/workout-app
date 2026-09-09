@@ -6,7 +6,7 @@ import { isBackupOverdue } from '../../storage/localStorage';
 import './AppShell.css';
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { state, dispatch } = useWorkout();
+  const { state, dispatch, storageError } = useWorkout();
   const [showHistory, setShowHistory] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   // Re-evaluated when the settings modal closes (i.e. after a possible export).
@@ -24,13 +24,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           {state.activeSession && (
             <span className="session-badge">In Progress</span>
           )}
-          <button className="unit-toggle" onClick={toggleUnit}>
+          <button className="unit-toggle" onClick={toggleUnit} aria-label={`Units: ${state.unit}. Tap to switch`}>
             {state.unit}
           </button>
           <button
             className="icon-btn"
             onClick={() => setShowHistory(true)}
             title="History"
+            aria-label="History"
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10" />
@@ -41,6 +42,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             className={`icon-btn ${backupOverdue ? 'icon-btn--attention' : ''}`}
             onClick={() => setShowSettings(true)}
             title={backupOverdue ? 'Settings — backup recommended' : 'Settings'}
+            aria-label={backupOverdue ? 'Settings, backup recommended' : 'Settings'}
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3" />
@@ -49,6 +51,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           </button>
         </div>
       </header>
+      {storageError && (
+        <div className="storage-warning" role="alert">
+          <strong>Changes aren&apos;t being saved.</strong> Device storage is full.
+          <button className="storage-warning-btn" onClick={() => setShowSettings(true)}>
+            Export a backup
+          </button>
+        </div>
+      )}
       <main className="main-content">
         {children}
       </main>

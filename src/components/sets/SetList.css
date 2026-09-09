@@ -23,8 +23,13 @@
 .set-list-header span:nth-child(3) { width: 12px; }
 .set-list-header { padding-right: 72px; }
 
+.set-list-target-row {
+  display: flex;
+  justify-content: flex-end;
+  padding-bottom: 4px;
+}
+
 .set-list-target {
-  margin-left: auto;
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--success);

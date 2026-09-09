@@ -1,9 +1,8 @@
 import { useRef, useState } from 'react';
 import { Modal } from '../common/Modal';
 import { useWorkout } from '../../hooks/useWorkout';
-import { getLastBackupDate, recordBackup, migrate } from '../../storage/localStorage';
+import { getLastBackupDate, recordBackup, migrate, validateAppState } from '../../storage/localStorage';
 import { formatDate, formatElapsed } from '../../utils/date';
-import type { AppState } from '../../types';
 import './SettingsModal.css';
 
 interface SettingsModalProps {
@@ -50,14 +49,15 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        const parsed = JSON.parse(reader.result as string) as AppState;
-        if (!parsed.schemaVersion || !parsed.days || !Array.isArray(parsed.history)) {
+        // Run migrations so backups from older app versions import cleanly,
+        // then check the shape so a bad file can't brick the app on next load.
+        const migrated = validateAppState(migrate(JSON.parse(reader.result as string)));
+        if (!migrated) {
           alert('Invalid backup file format.');
           return;
         }
         if (confirm('This will replace all current data. Continue?')) {
-          // Run migrations so backups from older app versions import cleanly.
-          dispatch({ type: 'LOAD_STATE', payload: migrate(parsed) });
+          dispatch({ type: 'LOAD_STATE', payload: migrated });
           onClose();
         }
       } catch {

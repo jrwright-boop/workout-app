@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { playBeep } from '../../utils/audio';
 import './RestTimer.css';
 
 interface RestTimerProps {
@@ -34,20 +35,7 @@ export function RestTimer({ onDismiss, defaultSeconds = 90 }: RestTimerProps) {
       if (navigator.vibrate) {
         navigator.vibrate([200, 100, 200]);
       }
-      // Beep via Web Audio API
-      try {
-        const ctx = new AudioContext();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.frequency.value = 880;
-        gain.gain.value = 0.3;
-        osc.start();
-        osc.stop(ctx.currentTime + 0.2);
-      } catch {
-        // Audio not available
-      }
+      playBeep();
     }
   }, [remaining]);
 
@@ -90,8 +78,8 @@ export function RestTimer({ onDismiss, defaultSeconds = 90 }: RestTimerProps) {
         </div>
         <span className="rest-timer-label">Rest</span>
         <div className="rest-timer-buttons">
-          <button className="rest-timer-btn" onClick={() => adjust(-15)}>-15s</button>
-          <button className="rest-timer-btn" onClick={() => adjust(15)}>+15s</button>
+          <button className="rest-timer-btn" onClick={() => adjust(-15)} aria-label="Subtract 15 seconds">-15s</button>
+          <button className="rest-timer-btn" onClick={() => adjust(15)} aria-label="Add 15 seconds">+15s</button>
         </div>
         <button className="rest-timer-dismiss" onClick={onDismiss}>Dismiss</button>
       </div>

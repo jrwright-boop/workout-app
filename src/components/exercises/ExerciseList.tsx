@@ -81,11 +81,14 @@ export function ExerciseList({ dayId }: { dayId: DayId }) {
         + Add Exercise
       </button>
 
-      <ExerciseForm
-        open={showAddForm}
-        onClose={() => setShowAddForm(false)}
-        dayId={dayId}
-      />
+      {/* Mounted only while open so each add starts from a blank form. */}
+      {showAddForm && (
+        <ExerciseForm
+          open={true}
+          onClose={() => setShowAddForm(false)}
+          dayId={dayId}
+        />
+      )}
 
       {editingExercise && (
         <ExerciseForm

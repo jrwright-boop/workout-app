@@ -28,7 +28,7 @@ function SortableDayItem({ dayId, name, onRename, onDelete }: {
 
   return (
     <div ref={setNodeRef} style={style} className="day-manager-item">
-      <button className="drag-handle" {...attributes} {...listeners}>
+      <button className="drag-handle" aria-label={`Reorder ${name}`} {...attributes} {...listeners}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
           <circle cx="9" cy="6" r="2" /><circle cx="15" cy="6" r="2" />
           <circle cx="9" cy="12" r="2" /><circle cx="15" cy="12" r="2" />

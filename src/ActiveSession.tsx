@@ -30,7 +30,7 @@ function SessionExerciseCard({
   return (
     <div className={`session-exercise ${exercise.skipped ? 'session-exercise--skipped' : ''} ${readyToProgress ? 'session-exercise--progress' : ''}`}>
       <div className="session-exercise-header">
-        <button className="session-drag-handle" {...(dragHandleProps ?? {})}>
+        <button className="session-drag-handle" aria-label={`Reorder ${exercise.name}`} {...(dragHandleProps ?? {})}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
             <circle cx="9" cy="6" r="2" /><circle cx="15" cy="6" r="2" />
             <circle cx="9" cy="12" r="2" /><circle cx="15" cy="12" r="2" />
@@ -41,7 +41,7 @@ function SessionExerciseCard({
           <h3 className="session-exercise-name">{exercise.name}</h3>
           {lastEntry && !exercise.skipped && (
             <span className="session-last-info">
-              Last ({formatDate(lastEntry.session.date)}):{' '}
+              Last ({formatDate(lastEntry.session.startedAt)}):{' '}
               {lastEntry.exercise.sets
                 .filter(s => s.weight != null && s.reps != null)
                 .map(s => `${s.weight}x${s.reps}`)

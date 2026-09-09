@@ -1,73 +1,47 @@
-# React + TypeScript + Vite
+# Workout
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A small, offline-first workout tracker built for the gym floor. Plan your training days, log sets against last session's numbers, and let the app tell you when it's time to add weight.
 
-Currently, two official plugins are available:
+Runs as an installable PWA. All data lives on the device in `localStorage`; nothing is sent anywhere.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Features
 
-## React Compiler
+- **Days and exercises.** Build any split (Push / Pull / Legs, Upper / Lower, whatever). Reorder by drag, skip exercises without deleting them.
+- **Target rep ranges.** Set 8–12 on an exercise and the row lights up green when you hit the top of the range on every set. That's your cue to add weight next time.
+- **Pre-fill from last session.** Weights carry over from the last time you did the exercise (on any day). Reps show as placeholders you can accept with one tap.
+- **Live session tools.** Rest timer with a wall-clock deadline (survives phone lock), workout timer, drop sets, per-exercise notes, add an exercise or a whole day's plan mid-workout.
+- **History and trends.** Per-exercise estimated 1RM and volume charts, searchable full history, edit past sets.
+- **Workout summary.** Duration, sets, volume vs. last time, and which exercises are ready to progress.
+- **Backup / restore.** Export everything as JSON from Settings. The app nudges you when a backup is more than 30 days old.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Development
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```sh
+npm install
+npm run dev        # local dev server
+npm test           # vitest
+npm run lint
+npm run build      # typecheck + production build into dist/
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Pushes to `master` deploy to GitHub Pages via `.github/workflows/deploy.yml`. Pull requests run lint, tests, and build via `.github/workflows/ci.yml`.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Project layout
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
 ```
+src/
+  reducers/workoutReducer.ts   all state transitions (pure, tested)
+  storage/localStorage.ts      persistence, schema migrations, validation
+  context/                     React context wiring
+  components/                  UI, grouped by feature (days, exercises, sets, history, ...)
+  utils/                       date, audio, rep-range helpers
+public/sw.js                   service worker (cache-first for hashed assets)
+```
+
+### Data model
+
+`AppState` (see `src/types/index.ts`) holds day templates, the active session, and completed history. Sessions snapshot exercise names and target ranges at start time so editing a template never rewrites the past. `schemaVersion` gates migrations in `storage/localStorage.ts`; bump it and add a migration step when the shape changes.
+
+### Service worker updates
+
+`vite.config.ts` stamps `sw.js` with a unique build id so every deploy produces a byte-different worker. The app shows a "Reload" toast when a new version has installed.

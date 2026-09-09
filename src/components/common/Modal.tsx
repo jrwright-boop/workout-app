@@ -26,10 +26,10 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
     <div className="modal-overlay" ref={overlayRef} onClick={e => {
       if (e.target === overlayRef.current) onClose();
     }}>
-      <div className="modal-content">
+      <div className="modal-content" role="dialog" aria-modal="true" aria-label={title}>
         <div className="modal-header">
           <h2>{title}</h2>
-          <button className="modal-close" onClick={onClose}>&times;</button>
+          <button className="modal-close" onClick={onClose} aria-label="Close">&times;</button>
         </div>
         <div className="modal-body">
           {children}

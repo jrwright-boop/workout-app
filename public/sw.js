@@ -25,16 +25,40 @@ self.addEventListener('message', (event) => {
   }
 });
 
-self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
+function cacheResponse(request, response) {
+  // Only keep successful same-origin responses; a cached 404 or error page
+  // would otherwise be served forever offline.
+  if (response && response.ok && response.type === 'basic') {
+    const clone = response.clone();
+    caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+  }
+  return response;
+}
 
+self.addEventListener('fetch', (event) => {
+  const { request } = event;
+  if (request.method !== 'GET') return;
+
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+
+  // Vite emits content-hashed filenames under /assets/, so a cached copy can
+  // never be stale: serve it instantly and skip the network. This is what
+  // makes the app open quickly on weak gym Wi-Fi.
+  if (url.pathname.includes('/assets/')) {
+    event.respondWith(
+      caches.match(request).then(
+        (cached) => cached || fetch(request).then((res) => cacheResponse(request, res))
+      )
+    );
+    return;
+  }
+
+  // Everything else (the HTML shell, manifest, icons, sw.js) is network-first
+  // so a new deploy is picked up, with the cache as the offline fallback.
   event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-        return response;
-      })
-      .catch(() => caches.match(event.request))
+    fetch(request)
+      .then((res) => cacheResponse(request, res))
+      .catch(() => caches.match(request))
   );
 });
