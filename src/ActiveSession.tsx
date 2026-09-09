@@ -13,6 +13,13 @@ import { hitTopOfRange, progressionHint } from './utils/repRange';
 import { defaultIncrement } from './utils/units';
 import './ActiveSession.css';
 
+function summariseSets(ex: SessionExercise): string {
+  return ex.sets
+    .filter(s => !s.warmup && s.weight != null && s.reps != null)
+    .map(s => `${s.weight}x${s.reps}`)
+    .join(', ');
+}
+
 function SessionExerciseCard({
   exercise,
   exerciseIndex,
@@ -25,7 +32,7 @@ function SessionExerciseCard({
   dragHandleProps?: Record<string, unknown>;
 }) {
   const { state, dispatch } = useWorkout();
-  const lastEntry = useLastSession(exercise.exerciseId, exercise.name);
+  const { last: lastEntry, newer } = useLastSession(exercise.exerciseId, exercise.name, exercise.origin === 'scheduled' ? state.activeSession?.dayId : null);
   const readyToProgress = hitTopOfRange(exercise);
   const suggestedSet = exercise.sets.find(s => s.suggested && s.weight != null);
   const step = exercise.increment ?? defaultIncrement(state.unit);
@@ -45,12 +52,16 @@ function SessionExerciseCard({
           {lastEntry && !exercise.skipped && (
             <span className="session-last-info">
               Last ({formatDate(lastEntry.session.startedAt)}):{' '}
-              {lastEntry.exercise.sets
-                .filter(s => s.weight != null && s.reps != null)
-                .map(s => `${s.weight}x${s.reps}`)
-                .join(', ')}
+              {summariseSets(lastEntry.exercise)}
+              {newer && (
+                <span className="session-last-newer">
+                  {' · '}{formatDate(newer.session.startedAt)} {newer.exercise.origin === 'makeup' ? 'make-up' : newer.session.dayName}:{' '}
+                  {summariseSets(newer.exercise)}
+                </span>
+              )}
             </span>
           )}
+          {exercise.origin === 'makeup' && <span className="origin-tag">make-up</span>}
         </div>
         <button
           className={`session-skip-btn ${exercise.skipped ? 'session-skip-btn--active' : ''}`}

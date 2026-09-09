@@ -33,7 +33,7 @@ function pastSession(sets: SetEntry[], overrides: Partial<WorkoutSession['exerci
     id: 's-old', dayId: 'd1', dayName: 'Push', date: '2026-08-10',
     startedAt: '2026-08-10T17:00:00Z', completedAt: '2026-08-10T18:00:00Z',
     exercises: [{
-      exerciseId: 'e1', name: 'Bench', notes: '', skipped: false, burndown: null,
+      exerciseId: 'e1', name: 'Bench', origin: 'scheduled', notes: '', skipped: false, burndown: null,
       targetRepMin: 8, targetRepMax: 12, ...DEFAULT_TYPE_FIELDS, sets, ...overrides,
     }],
   };
@@ -234,5 +234,48 @@ describe('FINISH_SESSION', () => {
     expect(state.activeSession).toBeNull();
     expect(state.history[0].id).toBe(id);
     expect(state.history[0].completedAt).not.toBeNull();
+  });
+});
+
+describe('origin and same-day pre-fill', () => {
+  function two(): AppState {
+    let state = stateWithDay();
+    state = workoutReducer(state, { type: 'ADD_DAY', payload: { name: 'Upper' } });
+    const upper = state.dayOrder[1];
+    state = workoutReducer(state, { type: 'COPY_EXERCISE_TO_DAY', payload: { fromDayId: 'd1', toDayId: upper, exerciseId: 'e1' } });
+    const heavy = pastSession([set(185, 8), set(185, 8), set(185, 8)]);
+    heavy.id = 's-heavy'; heavy.startedAt = '2026-09-01T17:00:00Z'; heavy.exercises[0].origin = 'scheduled';
+    const light = pastSession([set(120, 10), set(120, 10), set(120, 10)]);
+    light.id = 's-light'; light.dayId = upper; light.dayName = 'Upper'; light.startedAt = '2026-09-08T17:00:00Z'; light.exercises[0].origin = 'scheduled';
+    state.history = [light, heavy]; // newest first
+    return state;
+  }
+
+  it('a scheduled session pre-fills from the same day, not from a more recent other day', () => {
+    const state = two();
+    const next = workoutReducer(state, { type: 'START_SESSION', payload: { dayId: 'd1' } });
+    const bench = next.activeSession!.exercises[0];
+    expect(bench.origin).toBe('scheduled');
+    expect(bench.sets[0].weight).toBe(185);
+  });
+
+  it('a make-up uses the most recent instance anywhere and is tagged', () => {
+    let state = two();
+    state = workoutReducer(state, { type: 'ADD_DAY', payload: { name: 'Legs' } });
+    const legs = state.dayOrder[2];
+    state = workoutReducer(state, { type: 'START_SESSION', payload: { dayId: legs } });
+    state = workoutReducer(state, { type: 'ADD_SESSION_EXERCISE', payload: { exerciseId: 'e1', name: 'Bench', defaultSetCount: 3 } });
+    const bench = state.activeSession!.exercises.find(e => e.exerciseId === 'e1')!;
+    expect(bench.origin).toBe('makeup');
+    expect(bench.sets[0].weight).toBe(120);
+  });
+
+  it('a make-up in history does not drive the next scheduled pre-fill', () => {
+    const state = two();
+    const makeup = pastSession([set(150, 10), set(150, 10), set(150, 10)]);
+    makeup.id = 's-makeup'; makeup.dayId = state.dayOrder[1]; makeup.startedAt = '2026-09-10T17:00:00Z'; makeup.exercises[0].origin = 'makeup';
+    state.history = [makeup, ...state.history];
+    const next = workoutReducer(state, { type: 'START_SESSION', payload: { dayId: 'd1' } });
+    expect(next.activeSession!.exercises[0].sets[0].weight).toBe(185);
   });
 });

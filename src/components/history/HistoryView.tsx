@@ -7,6 +7,8 @@ import { TrainingCalendar } from './TrainingCalendar';
 import { formatDateTime } from '../../utils/date';
 import { sessionDate } from '../../utils/calendar';
 import type { ExerciseId, ExerciseTypeFields, SessionExercise, WorkoutSession } from '../../types';
+import type { HistoryScope } from '../../utils/exerciseHistory';
+import '../exercises/ExerciseForm.css';
 import './HistoryView.css';
 
 // Recharts is by far the heaviest dependency; load it only when someone
@@ -22,12 +24,23 @@ interface HistoryViewProps {
   exerciseName?: string;
   /** The exercise's current type; history is read through it. */
   exerciseType?: ExerciseTypeFields;
+  /** The day the history was opened from, for the "This day" filter. */
+  dayId?: string;
 }
 
 interface ExerciseHistoryProps {
   exerciseId: ExerciseId;
   exerciseName: string;
   exerciseType?: ExerciseTypeFields;
+  dayId?: string;
+}
+
+type ScopeChoice = 'all' | 'day' | 'scheduled';
+
+function scopeFor(choice: ScopeChoice, dayId: string | undefined): HistoryScope | undefined {
+  if (choice === 'day') return { dayId, scheduledOnly: true };
+  if (choice === 'scheduled') return { scheduledOnly: true };
+  return undefined;
 }
 
 function formatSets(ex: SessionExercise): string {
@@ -79,7 +92,10 @@ function SessionSummary({ session }: { session: WorkoutSession }) {
 
         return (
           <div key={exerciseIndex} className="history-exercise">
-            <span className="history-ex-name">{ex.name}{ex.skipped ? ' (skipped)' : ''}</span>
+            <span className="history-ex-name">
+              {ex.name}{ex.skipped ? ' (skipped)' : ''}
+              {ex.origin === 'makeup' && <span className="origin-tag">make-up</span>}
+            </span>
             {editing ? (
               <div className="history-set-editor">
                 {ex.sets.map((set, setIndex) => (
@@ -117,10 +133,12 @@ function SessionSummary({ session }: { session: WorkoutSession }) {
   );
 }
 
-function RecordsRow({ exerciseId, exerciseName, exerciseType }: ExerciseHistoryProps) {
+function RecordsRow({ exerciseId, exerciseName, exerciseType, dayId }: ExerciseHistoryProps) {
   const { state } = useWorkout();
   const records = useExerciseRecords(exerciseId, exerciseName, exerciseType);
+  const dayRecords = useExerciseRecords(exerciseId, exerciseName, exerciseType, dayId ? { dayId, scheduledOnly: true } : undefined);
   const unit = state.unit;
+  const dayName = dayId ? state.days[dayId]?.name : null;
   const items: { label: string; value: string }[] = [];
   if (records.minAssistance != null) items.push({ label: 'Least assist', value: `${records.minAssistance} ${unit}` });
   if (records.bestWeight != null) items.push({ label: 'Heaviest', value: `${records.bestWeight} ${unit}` });
@@ -129,32 +147,77 @@ function RecordsRow({ exerciseId, exerciseName, exerciseType }: ExerciseHistoryP
   if (records.bestSeconds != null) items.push({ label: 'Longest', value: `${records.bestSeconds}s` });
   if (records.bestVolume != null) items.push({ label: 'Best volume', value: records.bestVolume.toLocaleString() });
   if (items.length === 0) return null;
+
+  // Headline for this day's plan, when it differs from the all-time best.
+  const headline = records.minAssistance != null
+    ? { all: records.minAssistance, day: dayRecords.minAssistance, label: 'least assist' }
+    : records.bestWeight != null
+      ? { all: records.bestWeight, day: dayRecords.bestWeight, label: 'heaviest' }
+      : { all: records.bestReps, day: dayRecords.bestReps, label: 'most reps' };
+  const showDay = dayName && headline.day != null && headline.day !== headline.all;
+
   return (
-    <div className="records-row">
-      {items.slice(0, 4).map(i => (
-        <div key={i.label} className="record-stat">
-          <span className="record-stat-value">{i.value}</span>
-          <span className="record-stat-label">{i.label}</span>
-        </div>
-      ))}
+    <div className="records-block">
+      <div className="records-row">
+        {items.slice(0, 4).map(i => (
+          <div key={i.label} className="record-stat">
+            <span className="record-stat-value">{i.value}</span>
+            <span className="record-stat-label">{i.label}</span>
+          </div>
+        ))}
+      </div>
+      {showDay && (
+        <span className="records-day-note">
+          On {dayName}: {headline.label} {headline.day}{headline.label === 'most reps' ? '' : ` ${unit}`} (all-time best is from another day or a make-up)
+        </span>
+      )}
     </div>
   );
 }
 
-function ExerciseHistoryContent({ exerciseId, exerciseName, exerciseType }: ExerciseHistoryProps) {
+function ExerciseHistoryContent({ exerciseId, exerciseName, exerciseType, dayId }: ExerciseHistoryProps) {
   const { state } = useWorkout();
-  const history = useExerciseHistory(exerciseId, exerciseName, exerciseType);
+  const [choice, setChoice] = useState<ScopeChoice>('all');
+  const allHistory = useExerciseHistory(exerciseId, exerciseName, exerciseType);
+  const history = useExerciseHistory(exerciseId, exerciseName, exerciseType, scopeFor(choice, dayId));
+  const dayName = dayId ? state.days[dayId]?.name : null;
+
+  // Only offer filters when they would change something.
+  const hasMakeups = allHistory.some(h => h.exercise.origin === 'makeup');
+  const hasOtherDays = dayId ? allHistory.some(h => h.session.dayId !== dayId) : false;
+  const showFilter = hasMakeups || hasOtherDays;
 
   return (
     <div className="history-content">
-      <RecordsRow exerciseId={exerciseId} exerciseName={exerciseName} exerciseType={exerciseType} />
+      <RecordsRow exerciseId={exerciseId} exerciseName={exerciseName} exerciseType={exerciseType} dayId={dayId} />
+
+      {showFilter && (
+        <div className="segmented" role="radiogroup" aria-label="History scope">
+          {([
+            ['all', 'All'],
+            ...(dayName ? [['day', `${dayName} only`]] : []),
+            ...(hasMakeups ? [['scheduled', 'No make-ups']] : []),
+          ] as [ScopeChoice, string][]).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={choice === value}
+              className={`segmented-btn ${choice === value ? 'segmented-btn--active' : ''}`}
+              onClick={() => setChoice(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <Suspense fallback={<p className="history-empty">Loading charts…</p>}>
         <ExerciseChart history={history} unit={state.unit} />
       </Suspense>
 
       {history.length === 0 ? (
-        <p className="history-empty">No history yet for {exerciseName}</p>
+        <p className="history-empty">No history yet for {exerciseName}{choice !== 'all' ? ' in this view' : ''}</p>
       ) : (
         <div className="history-list">
           {history.map(({ session, exercise }) => {
@@ -169,6 +232,7 @@ function ExerciseHistoryContent({ exerciseId, exerciseName, exerciseType }: Exer
                 <span className="history-date">
                   {formatDateTime(session.startedAt)}
                   {session.dayName && <span className="history-entry-day"> · {session.dayName}</span>}
+                  {exercise.origin === 'makeup' && <span className="origin-tag">make-up</span>}
                 </span>
                 {setsSummary && <span className="history-ex-sets">{setsSummary}</span>}
                 {dropsSummary && <span className="history-ex-drops">Drops: {dropsSummary}</span>}
@@ -231,7 +295,7 @@ function FullHistoryContent() {
   );
 }
 
-export function HistoryView({ open, onClose, exerciseId, exerciseName, exerciseType }: HistoryViewProps) {
+export function HistoryView({ open, onClose, exerciseId, exerciseName, exerciseType, dayId }: HistoryViewProps) {
   const title = exerciseId && exerciseName
     ? `${exerciseName} History`
     : 'Workout History';
@@ -239,7 +303,7 @@ export function HistoryView({ open, onClose, exerciseId, exerciseName, exerciseT
   return (
     <Modal open={open} onClose={onClose} title={title}>
       {exerciseId && exerciseName ? (
-        <ExerciseHistoryContent exerciseId={exerciseId} exerciseName={exerciseName} exerciseType={exerciseType} />
+        <ExerciseHistoryContent exerciseId={exerciseId} exerciseName={exerciseName} exerciseType={exerciseType} dayId={dayId} />
       ) : (
         <FullHistoryContent />
       )}

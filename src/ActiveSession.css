@@ -177,3 +177,22 @@
 .session-footer--with-timer {
   padding-bottom: calc(100px + env(safe-area-inset-bottom));
 }
+
+.session-last-newer {
+  color: var(--text-muted);
+  opacity: 0.8;
+}
+
+.origin-tag {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--burndown-accent);
+  background: rgba(255, 149, 0, 0.14);
+  padding: 1px 6px;
+  border-radius: 8px;
+  vertical-align: middle;
+}

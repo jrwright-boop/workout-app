@@ -8,7 +8,7 @@ function set(weight: number | null, reps: number | null, extra: Partial<SetEntry
 }
 
 function ex(sets: SetEntry[], extra: Partial<SessionExercise> = {}): SessionExercise {
-  return { exerciseId: 'e', name: 'X', sets, burndown: null, notes: '', skipped: false, targetRepMin: null, targetRepMax: null, ...DEFAULT_TYPE_FIELDS, ...extra };
+  return { exerciseId: 'e', name: 'X', origin: 'scheduled', sets, burndown: null, notes: '', skipped: false, targetRepMin: null, targetRepMax: null, ...DEFAULT_TYPE_FIELDS, ...extra };
 }
 
 describe('volume and metrics', () => {

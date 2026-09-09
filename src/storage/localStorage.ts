@@ -1,6 +1,6 @@
 import type { AppState, ExerciseId, Program, SessionExercise, SetEntry } from '../types';
 import { DEFAULT_BAR_WEIGHT, DEFAULT_TYPE_FIELDS, SCHEMA_VERSION } from '../types';
-import { exerciseKey } from '../utils/exerciseKey';
+import { exerciseKey, sameExercise } from '../utils/exerciseKey';
 
 export const STORAGE_KEY = 'workout-app-state';
 
@@ -113,6 +113,7 @@ function isSetEntry(v: unknown): boolean {
 function isSessionExercise(v: unknown): boolean {
   if (!isObj(v) || !isStr(v.exerciseId) || !isStr(v.name) || !Array.isArray(v.sets)) return false;
   if (!v.sets.every(isSetEntry)) return false;
+  if (v.origin !== undefined && !ORIGINS.has(v.origin as string)) return false;
   if (v.burndown !== null && !(isObj(v.burndown) && Array.isArray(v.burndown.drops))) return false;
   return true;
 }
@@ -124,6 +125,7 @@ function isSession(v: unknown): boolean {
 
 const LOAD_TYPES = new Set(['external', 'bodyweight', 'assisted']);
 const MEASURES = new Set(['reps', 'seconds']);
+const ORIGINS = new Set(['scheduled', 'makeup']);
 
 function isTemplate(v: unknown): boolean {
   if (!isObj(v) || !isStr(v.id) || !isStr(v.name) || typeof v.defaultSetCount !== 'number') return false;
@@ -260,7 +262,32 @@ export function migrate(input: unknown): unknown {
     state.schemaVersion = 5;
   }
 
+  if (state.schemaVersion < 6) {
+    migrateToV6(state);
+    state.schemaVersion = 6;
+  }
+
   return state;
+}
+
+/**
+ * v6: tag every logged exercise with its origin. Purely additive — nothing
+ * else is touched. An exercise counts as scheduled when its session's day
+ * plan (as it exists now) includes it; if the day has since been deleted we
+ * can't tell, so it defaults to scheduled, which is what most entries are.
+ */
+function migrateToV6(state: AppState): void {
+  const tag = (session: { dayId: string; exercises: SessionExercise[] }) => {
+    const day = state.days?.[session.dayId];
+    for (const ex of session.exercises ?? []) {
+      if (ex.origin !== undefined) continue;
+      if (!day) { ex.origin = 'scheduled'; continue; }
+      const onPlan = day.exerciseOrder.some(id => sameExercise(day.exercises[id], ex.exerciseId, ex.name));
+      ex.origin = onPlan ? 'scheduled' : 'makeup';
+    }
+  };
+  for (const session of state.history ?? []) tag(session);
+  if (state.activeSession) tag(state.activeSession);
 }
 
 /**

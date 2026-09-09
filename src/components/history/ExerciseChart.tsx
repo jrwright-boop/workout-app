@@ -47,9 +47,12 @@ export function ExerciseChart({ history, unit }: ExerciseChartProps) {
   const data = useMemo(() => {
     return [...history].reverse().map(({ session, exercise }) => {
       const m = exerciseMetrics(exercise);
+      const makeup = exercise.origin === 'makeup';
       return {
         // startedAt matches the timestamps shown in the history list.
         date: formatDate(session.startedAt),
+        label: `${formatDate(session.startedAt)} · ${session.dayName}${makeup ? ' (make-up)' : ''}`,
+        makeup,
         e1rm: m.e1rm ?? undefined,
         volume: m.volume || undefined,
         bestWeight: m.bestWeight ?? undefined,
@@ -80,13 +83,30 @@ export function ExerciseChart({ history, unit }: ExerciseChartProps) {
               <Tooltip
                 contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}
                 labelStyle={{ color: 'var(--text-secondary)' }}
+                labelFormatter={(_label, payload) => (payload?.[0]?.payload as { label?: string } | undefined)?.label ?? String(_label)}
               />
               <Line
                 type="monotone"
                 dataKey={s.key}
                 stroke={s.color}
                 strokeWidth={2}
-                dot={{ r: 4, fill: s.color }}
+                // Make-ups draw as hollow dots so they're visible but distinguishable.
+                dot={(props: { cx?: number; cy?: number; payload?: { makeup?: boolean }; value?: unknown }) => {
+                  const { cx, cy, payload, value } = props;
+                  if (cx == null || cy == null || value == null) return <g key={`${s.key}-${cx}`} />;
+                  const hollow = !!payload?.makeup;
+                  return (
+                    <circle
+                      key={`${s.key}-${cx}`}
+                      cx={cx}
+                      cy={cy}
+                      r={4}
+                      fill={hollow ? 'var(--surface)' : s.color}
+                      stroke={s.color}
+                      strokeWidth={2}
+                    />
+                  );
+                }}
                 name={s.title}
                 connectNulls
               />

@@ -30,7 +30,7 @@ export const ExerciseCard = memo(function ExerciseCard({
   dragHandleProps,
 }: ExerciseCardProps) {
   const { dispatch } = useWorkout();
-  const lastSession = useLastSession(exercise.id, exercise.name);
+  const lastInfo = useLastSession(exercise.id, exercise.name, dayId);
   const [showHistory, setShowHistory] = useState(false);
   const targetRange = formatRepRange(exercise.targetRepMin, exercise.targetRepMax, exercise.measure);
   const badge = typeBadge(exercise);
@@ -78,8 +78,8 @@ export const ExerciseCard = memo(function ExerciseCard({
             </button>
           </div>
         </div>
-        {lastSession && !exercise.skipped && (
-          <LastSessionBadge entry={lastSession} />
+        {lastInfo.last && !exercise.skipped && (
+          <LastSessionBadge info={lastInfo} />
         )}
       </div>
       <HistoryView
@@ -88,6 +88,7 @@ export const ExerciseCard = memo(function ExerciseCard({
         exerciseId={exercise.id}
         exerciseName={exercise.name}
         exerciseType={exercise}
+        dayId={dayId}
       />
     </>
   );

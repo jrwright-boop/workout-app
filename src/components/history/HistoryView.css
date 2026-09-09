@@ -184,3 +184,28 @@
   padding: 4px 12px;
   cursor: pointer;
 }
+
+.records-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.records-day-note {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.origin-tag {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--burndown-accent);
+  background: rgba(255, 149, 0, 0.14);
+  padding: 1px 6px;
+  border-radius: 8px;
+  vertical-align: middle;
+}

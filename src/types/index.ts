@@ -65,9 +65,20 @@ export interface DropEntry {
   reps: number | null;
 }
 
+/**
+ * How an exercise ended up in a session.
+ * - scheduled: it was on the day's plan when the session started.
+ * - makeup:    added mid-workout (single exercise or a whole day's plan),
+ *              e.g. catching up on a missed day.
+ * Pre-fill and progression prefer same-day scheduled history; charts and
+ * records still see everything, with make-ups distinguishable.
+ */
+export type ExerciseOrigin = 'scheduled' | 'makeup';
+
 export interface SessionExercise {
   exerciseId: ExerciseId;
   name: string;
+  origin: ExerciseOrigin;
   sets: SetEntry[];
   burndown: { drops: DropEntry[] } | null;
   notes: string;
@@ -172,7 +183,7 @@ export type WorkoutAction =
   | { type: 'DELETE_PROGRAM'; payload: { programId: ProgramId } }
   | { type: 'IMPORT_PROGRAM'; payload: { program: Program } };
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 export const DEFAULT_TYPE_FIELDS: ExerciseTypeFields = {
   loadType: 'external',

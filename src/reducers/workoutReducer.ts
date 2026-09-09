@@ -4,7 +4,7 @@ import type {
 } from '../types';
 import { generateId } from '../utils/id';
 import { toISODate } from '../utils/date';
-import { findLastPerformed } from '../utils/exerciseHistory';
+import { findLastForDay, findLastPerformed } from '../utils/exerciseHistory';
 import { hitTopOfRange } from '../utils/repRange';
 import { workingSets } from '../utils/metrics';
 import { convertWeight, defaultIncrement } from '../utils/units';
@@ -52,11 +52,25 @@ function emptySet(): SetEntry {
   return { weight: null, reps: null, completed: false, repsFromLastSession: null, warmup: false, prefilledWeight: null, suggested: false };
 }
 
-function sessionExerciseFromTemplate(ex: ExerciseTemplate, state: AppState): SessionExercise {
-  const lastEx = findLastPerformed(state.history, ex.id, ex.name)?.exercise;
+/**
+ * Build a session exercise from a day template. Scheduled exercises pre-fill
+ * from the same day's scheduled history first (so a heavy day never inherits
+ * a light day's numbers), falling back to any instance. Make-ups (a day's
+ * plan pulled into another session) use the most recent instance anywhere.
+ */
+function sessionExerciseFromTemplate(
+  ex: ExerciseTemplate,
+  state: AppState,
+  dayId: string,
+  origin: SessionExercise['origin']
+): SessionExercise {
+  const lastEx = origin === 'scheduled'
+    ? findLastForDay(state.history, ex.id, ex.name, dayId).last?.exercise
+    : findLastPerformed(state.history, ex.id, ex.name)?.exercise;
   return {
     exerciseId: ex.id,
     name: ex.name,
+    origin,
     sets: buildSetsFromLast(lastEx, ex.defaultSetCount, ex, state.unit),
     burndown: null,
     notes: '',
@@ -282,7 +296,7 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
       const exercises: SessionExercise[] = day.exerciseOrder
         .map(eid => day.exercises[eid])
         .filter(ex => !ex.skipped)
-        .map(ex => sessionExerciseFromTemplate(ex, state));
+        .map(ex => sessionExerciseFromTemplate(ex, state, dayId, 'scheduled'));
 
       const session: WorkoutSession = {
         id: generateId(),
@@ -463,6 +477,7 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
       const newExercise: SessionExercise = {
         exerciseId: exerciseId ?? last?.exerciseId ?? generateId(),
         name,
+        origin: 'makeup',
         sets: buildSetsFromLast(last, defaultSetCount, source, state.unit),
         burndown: null,
         notes: '',
@@ -493,7 +508,7 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
       const added: SessionExercise[] = day.exerciseOrder
         .map(eid => day.exercises[eid])
         .filter(ex => !ex.skipped && !currentIds.has(ex.id))
-        .map(ex => sessionExerciseFromTemplate(ex, state));
+        .map(ex => sessionExerciseFromTemplate(ex, state, action.payload.dayId, 'makeup'));
 
       if (added.length === 0) return state;
       return {

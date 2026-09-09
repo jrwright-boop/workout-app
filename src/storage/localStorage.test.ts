@@ -17,7 +17,7 @@ function fullState(): AppState {
       id: 's1', dayId: 'd1', dayName: 'Push', date: '2026-08-19',
       startedAt: '2026-08-19T21:00:00Z', completedAt: '2026-08-19T22:00:00Z',
       exercises: [{
-        exerciseId: 'e1', name: 'Bench', notes: '', skipped: false, burndown: null,
+        exerciseId: 'e1', name: 'Bench', origin: 'scheduled', notes: '', skipped: false, burndown: null,
         targetRepMin: 8, targetRepMax: 12, ...DEFAULT_TYPE_FIELDS,
         sets: [{ weight: 100, reps: 10, completed: true, repsFromLastSession: null, warmup: false, prefilledWeight: null, suggested: false }],
       }],
@@ -80,7 +80,7 @@ describe('migrate', () => {
     };
     const out = validateAppState(migrate(v1));
     expect(out).not.toBeNull();
-    expect(out!.schemaVersion).toBe(5);
+    expect(out!.schemaVersion).toBe(6);
     expect(out!.unit).toBe('lbs');
     expect(out!.restSeconds).toBe(90);
     expect(out!.days.d1.exercises.e1.targetRepMin).toBeNull();
@@ -124,5 +124,48 @@ describe('migrate', () => {
   it('passes non-objects through untouched so validation can reject them', () => {
     expect(migrate(null)).toBeNull();
     expect(migrate(42)).toBe(42);
+  });
+});
+
+describe('migrate v6 (origin tags)', () => {
+  function v5(): unknown {
+    return {
+      schemaVersion: 5, unit: 'lbs', restSeconds: 90, activeDayId: 'd1', barWeight: { lbs: 45, kg: 20 }, programs: [],
+      dayOrder: ['d1'],
+      days: { d1: { id: 'd1', name: 'Push', exerciseOrder: ['e1'], exercises: { e1: { id: 'e1', name: 'Bench', defaultSetCount: 3, skipped: false, targetRepMin: null, targetRepMax: null, ...DEFAULT_TYPE_FIELDS } } } },
+      activeSession: null,
+      history: [
+        { id: 's1', dayId: 'd1', dayName: 'Push', date: '2026-09-01', startedAt: '2026-09-01T17:00:00Z', completedAt: '2026-09-01T18:00:00Z', exercises: [
+          { exerciseId: 'e1', name: 'Bench', sets: [{ weight: 100, reps: 5, completed: true, repsFromLastSession: null, warmup: false, prefilledWeight: null, suggested: false }], burndown: null, notes: 'felt good', skipped: false, targetRepMin: null, targetRepMax: null, ...DEFAULT_TYPE_FIELDS },
+          { exerciseId: 'x9', name: 'Curl', sets: [{ weight: 30, reps: 12, completed: true, repsFromLastSession: null, warmup: false, prefilledWeight: null, suggested: false }], burndown: null, notes: '', skipped: false, targetRepMin: null, targetRepMax: null, ...DEFAULT_TYPE_FIELDS },
+        ] },
+        { id: 's0', dayId: 'gone', dayName: 'Old Day', date: '2026-08-01', startedAt: '2026-08-01T17:00:00Z', completedAt: '2026-08-01T18:00:00Z', exercises: [
+          { exerciseId: 'e1', name: 'Bench', sets: [{ weight: 90, reps: 5, completed: true, repsFromLastSession: null, warmup: false, prefilledWeight: null, suggested: false }], burndown: null, notes: '', skipped: false, targetRepMin: null, targetRepMax: null, ...DEFAULT_TYPE_FIELDS },
+        ] },
+      ],
+    };
+  }
+
+  it('tags scheduled vs make-up from the day plan and defaults to scheduled when the day is gone', () => {
+    const out = validateAppState(migrate(v5()))!;
+    expect(out.schemaVersion).toBe(6);
+    expect(out.history[0].exercises.map(e => e.origin)).toEqual(['scheduled', 'makeup']);
+    expect(out.history[1].exercises[0].origin).toBe('scheduled');
+  });
+
+  it('changes nothing else: stripping the added field gives back the original data', () => {
+    const before = JSON.parse(JSON.stringify(v5()));
+    const out = JSON.parse(JSON.stringify(migrate(v5())));
+    for (const s of out.history) for (const e of s.exercises) delete e.origin;
+    out.schemaVersion = 5;
+    expect(out).toEqual(before);
+  });
+
+  it('does not overwrite an origin that is already set', () => {
+    const data = v5() as { history: { exercises: { origin?: string }[] }[]; schemaVersion: number };
+    data.history[0].exercises[0].origin = 'makeup';
+    data.schemaVersion = 5;
+    const out = validateAppState(migrate(data))!;
+    expect(out.history[0].exercises[0].origin).toBe('makeup');
   });
 });
