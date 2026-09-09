@@ -1,10 +1,12 @@
 import { lazy, Suspense, useMemo, useState } from 'react';
 import { Modal } from '../common/Modal';
 import { useWorkout } from '../../hooks/useWorkout';
-import { useExerciseHistory } from '../../hooks/useExerciseHistory';
+import { useExerciseHistory, useExerciseRecords } from '../../hooks/useExerciseHistory';
 import { NumericInput } from '../common/NumericInput';
+import { TrainingCalendar } from './TrainingCalendar';
 import { formatDateTime } from '../../utils/date';
-import type { ExerciseId, WorkoutSession } from '../../types';
+import { sessionDate } from '../../utils/calendar';
+import type { ExerciseId, ExerciseTypeFields, SessionExercise, WorkoutSession } from '../../types';
 import './HistoryView.css';
 
 // Recharts is by far the heaviest dependency; load it only when someone
@@ -18,6 +20,25 @@ interface HistoryViewProps {
   onClose: () => void;
   exerciseId?: ExerciseId;
   exerciseName?: string;
+  /** The exercise's current type; history is read through it. */
+  exerciseType?: ExerciseTypeFields;
+}
+
+interface ExerciseHistoryProps {
+  exerciseId: ExerciseId;
+  exerciseName: string;
+  exerciseType?: ExerciseTypeFields;
+}
+
+function formatSets(ex: SessionExercise): string {
+  const unitSuffix = ex.measure === 'seconds' ? 's' : '';
+  return ex.sets
+    .filter(s => s.weight != null || s.reps != null)
+    .map(s => {
+      const core = s.weight != null ? `${s.weight}x${s.reps ?? '?'}${unitSuffix}` : `${s.reps ?? '?'}${unitSuffix}`;
+      return s.warmup ? `(${core})` : core;
+    })
+    .join(', ');
 }
 
 function SessionSummary({ session }: { session: WorkoutSession }) {
@@ -50,11 +71,7 @@ function SessionSummary({ session }: { session: WorkoutSession }) {
         </div>
       </div>
       {session.exercises.map((ex, exerciseIndex) => {
-        const setsSummary = ex.sets
-          .filter(s => s.weight != null && s.reps != null)
-          .map(s => `${s.weight}x${s.reps}`)
-          .join(', ');
-
+        const setsSummary = formatSets(ex);
         const dropsSummary = ex.burndown?.drops
           .filter(d => d.weight != null && d.reps != null)
           .map(d => `${d.weight}x${d.reps}`)
@@ -62,12 +79,12 @@ function SessionSummary({ session }: { session: WorkoutSession }) {
 
         return (
           <div key={exerciseIndex} className="history-exercise">
-            <span className="history-ex-name">{ex.name}</span>
+            <span className="history-ex-name">{ex.name}{ex.skipped ? ' (skipped)' : ''}</span>
             {editing ? (
               <div className="history-set-editor">
                 {ex.sets.map((set, setIndex) => (
                   <div key={setIndex} className="history-set-edit-row">
-                    <span className="history-set-edit-num">{setIndex + 1}</span>
+                    <span className="history-set-edit-num">{set.warmup ? 'W' : setIndex + 1}</span>
                     <NumericInput
                       value={set.weight}
                       onChange={value => dispatch({
@@ -83,7 +100,7 @@ function SessionSummary({ session }: { session: WorkoutSession }) {
                         type: 'UPDATE_HISTORY_SET',
                         payload: { sessionId: session.id, exerciseIndex, setIndex, field: 'reps', value },
                       })}
-                      placeholder="reps"
+                      placeholder={ex.measure === 'seconds' ? 'sec' : 'reps'}
                     />
                   </div>
                 ))}
@@ -100,13 +117,40 @@ function SessionSummary({ session }: { session: WorkoutSession }) {
   );
 }
 
-function ExerciseHistoryContent({ exerciseId, exerciseName }: { exerciseId: ExerciseId; exerciseName: string }) {
-  const history = useExerciseHistory(exerciseId);
+function RecordsRow({ exerciseId, exerciseName, exerciseType }: ExerciseHistoryProps) {
+  const { state } = useWorkout();
+  const records = useExerciseRecords(exerciseId, exerciseName, exerciseType);
+  const unit = state.unit;
+  const items: { label: string; value: string }[] = [];
+  if (records.minAssistance != null) items.push({ label: 'Least assist', value: `${records.minAssistance} ${unit}` });
+  if (records.bestWeight != null) items.push({ label: 'Heaviest', value: `${records.bestWeight} ${unit}` });
+  if (records.bestE1RM != null) items.push({ label: 'Est. 1RM', value: `${records.bestE1RM} ${unit}` });
+  if (records.bestReps != null) items.push({ label: 'Most reps', value: `${records.bestReps}` });
+  if (records.bestSeconds != null) items.push({ label: 'Longest', value: `${records.bestSeconds}s` });
+  if (records.bestVolume != null) items.push({ label: 'Best volume', value: records.bestVolume.toLocaleString() });
+  if (items.length === 0) return null;
+  return (
+    <div className="records-row">
+      {items.slice(0, 4).map(i => (
+        <div key={i.label} className="record-stat">
+          <span className="record-stat-value">{i.value}</span>
+          <span className="record-stat-label">{i.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ExerciseHistoryContent({ exerciseId, exerciseName, exerciseType }: ExerciseHistoryProps) {
+  const { state } = useWorkout();
+  const history = useExerciseHistory(exerciseId, exerciseName, exerciseType);
 
   return (
     <div className="history-content">
+      <RecordsRow exerciseId={exerciseId} exerciseName={exerciseName} exerciseType={exerciseType} />
+
       <Suspense fallback={<p className="history-empty">Loading charts…</p>}>
-        <ExerciseChart history={history} />
+        <ExerciseChart history={history} unit={state.unit} />
       </Suspense>
 
       {history.length === 0 ? (
@@ -114,11 +158,7 @@ function ExerciseHistoryContent({ exerciseId, exerciseName }: { exerciseId: Exer
       ) : (
         <div className="history-list">
           {history.map(({ session, exercise }) => {
-            const setsSummary = exercise.sets
-              .filter(s => s.weight != null && s.reps != null)
-              .map(s => `${s.weight}x${s.reps}`)
-              .join(', ');
-
+            const setsSummary = formatSets(exercise);
             const dropsSummary = exercise.burndown?.drops
               .filter(d => d.weight != null && d.reps != null)
               .map(d => `${d.weight}x${d.reps}`)
@@ -126,7 +166,10 @@ function ExerciseHistoryContent({ exerciseId, exerciseName }: { exerciseId: Exer
 
             return (
               <div key={session.id} className="history-exercise-entry">
-                <span className="history-date">{formatDateTime(session.startedAt)}</span>
+                <span className="history-date">
+                  {formatDateTime(session.startedAt)}
+                  {session.dayName && <span className="history-entry-day"> · {session.dayName}</span>}
+                </span>
                 {setsSummary && <span className="history-ex-sets">{setsSummary}</span>}
                 {dropsSummary && <span className="history-ex-drops">Drops: {dropsSummary}</span>}
                 {exercise.notes && <span className="history-ex-notes">{exercise.notes}</span>}
@@ -142,18 +185,23 @@ function ExerciseHistoryContent({ exerciseId, exerciseName }: { exerciseId: Exer
 function FullHistoryContent() {
   const { state } = useWorkout();
   const [query, setQuery] = useState('');
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return state.history;
-    return state.history.filter(session =>
-      session.dayName.toLowerCase().includes(q) ||
-      session.exercises.some(ex => ex.name.toLowerCase().includes(q))
-    );
-  }, [state.history, query]);
+    return state.history.filter(session => {
+      if (selectedDate && sessionDate(session) !== selectedDate) return false;
+      if (!q) return true;
+      return session.dayName.toLowerCase().includes(q) ||
+        session.exercises.some(ex => ex.name.toLowerCase().includes(q));
+    });
+  }, [state.history, query, selectedDate]);
 
   return (
     <div className="history-content">
+      {state.history.length > 0 && (
+        <TrainingCalendar history={state.history} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
+      )}
       {state.history.length > 0 && (
         <input
           type="text"
@@ -163,10 +211,15 @@ function FullHistoryContent() {
           placeholder="Search by day or exercise..."
         />
       )}
+      {selectedDate && (
+        <button type="button" className="history-filter-chip" onClick={() => setSelectedDate(null)}>
+          Showing {selectedDate} · clear
+        </button>
+      )}
       {state.history.length === 0 ? (
         <p className="history-empty">No workouts completed yet</p>
       ) : filtered.length === 0 ? (
-        <p className="history-empty">No workouts match &ldquo;{query.trim()}&rdquo;</p>
+        <p className="history-empty">No workouts match</p>
       ) : (
         <div className="history-list">
           {filtered.map(session => (
@@ -178,7 +231,7 @@ function FullHistoryContent() {
   );
 }
 
-export function HistoryView({ open, onClose, exerciseId, exerciseName }: HistoryViewProps) {
+export function HistoryView({ open, onClose, exerciseId, exerciseName, exerciseType }: HistoryViewProps) {
   const title = exerciseId && exerciseName
     ? `${exerciseName} History`
     : 'Workout History';
@@ -186,7 +239,7 @@ export function HistoryView({ open, onClose, exerciseId, exerciseName }: History
   return (
     <Modal open={open} onClose={onClose} title={title}>
       {exerciseId && exerciseName ? (
-        <ExerciseHistoryContent exerciseId={exerciseId} exerciseName={exerciseName} />
+        <ExerciseHistoryContent exerciseId={exerciseId} exerciseName={exerciseName} exerciseType={exerciseType} />
       ) : (
         <FullHistoryContent />
       )}

@@ -20,3 +20,22 @@
   background: var(--accent);
   color: #fff;
 }
+
+.day-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  line-height: 1.2;
+}
+
+.day-tab--with-sub {
+  padding: 6px 14px;
+}
+
+.day-tab-sub {
+  font-size: 0.65rem;
+  font-weight: 500;
+  opacity: 0.75;
+  white-space: nowrap;
+}

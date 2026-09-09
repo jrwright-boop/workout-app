@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useWorkout } from '../../hooks/useWorkout';
 import { DayTab } from './DayTab';
 import { DayManager } from './DayManager';
+import { formatDuration, formatRelativeDay } from '../../utils/date';
 import './DayTabBar.css';
 
 export function DayTabBar() {
@@ -14,10 +15,16 @@ export function DayTabBar() {
         <div className="day-tabs-scroll">
           {state.dayOrder.map(dayId => {
             const day = state.days[dayId];
+            // History is newest-first, so the first match is the latest.
+            const last = state.history.find(s => s.dayId === dayId);
+            const sublabel = last
+              ? `${formatRelativeDay(last.startedAt)}${last.completedAt ? ` · ${formatDuration(last.startedAt, last.completedAt)}` : ''}`
+              : null;
             return (
               <DayTab
                 key={dayId}
                 name={day.name}
+                sublabel={sublabel}
                 active={dayId === state.activeDayId}
                 onClick={() => dispatch({ type: 'SET_ACTIVE_DAY', payload: { dayId } })}
               />

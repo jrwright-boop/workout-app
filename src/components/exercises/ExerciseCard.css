@@ -94,3 +94,13 @@
 .delete-btn:active {
   color: var(--danger);
 }
+
+.type-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg);
+  padding: 2px 7px;
+  border-radius: 10px;
+  white-space: nowrap;
+}

@@ -14,6 +14,15 @@ interface ExerciseCardProps {
   dragHandleProps?: Record<string, unknown>;
 }
 
+function typeBadge(ex: ExerciseTemplate): string | null {
+  const parts: string[] = [];
+  if (ex.loadType === 'assisted') parts.push('assisted');
+  if (ex.loadType === 'bodyweight') parts.push('BW');
+  if (ex.perSide) parts.push('each');
+  if (ex.measure === 'seconds') parts.push('timed');
+  return parts.length ? parts.join(' · ') : null;
+}
+
 export const ExerciseCard = memo(function ExerciseCard({
   exercise,
   dayId,
@@ -21,9 +30,10 @@ export const ExerciseCard = memo(function ExerciseCard({
   dragHandleProps,
 }: ExerciseCardProps) {
   const { dispatch } = useWorkout();
-  const lastSession = useLastSession(exercise.id);
+  const lastSession = useLastSession(exercise.id, exercise.name);
   const [showHistory, setShowHistory] = useState(false);
-  const targetRange = formatRepRange(exercise.targetRepMin, exercise.targetRepMax);
+  const targetRange = formatRepRange(exercise.targetRepMin, exercise.targetRepMax, exercise.measure);
+  const badge = typeBadge(exercise);
 
   return (
     <>
@@ -42,6 +52,7 @@ export const ExerciseCard = memo(function ExerciseCard({
           <div className="exercise-meta">
             <span className="set-count">{exercise.defaultSetCount}s</span>
             {targetRange && <span className="target-badge">{targetRange}</span>}
+            {badge && <span className="type-badge">{badge}</span>}
           </div>
           <div className="exercise-actions">
             <button
@@ -56,7 +67,7 @@ export const ExerciseCard = memo(function ExerciseCard({
               className="delete-btn"
               aria-label={`Delete ${exercise.name}`}
               onClick={() => {
-                if (confirm(`Delete "${exercise.name}"?`)) {
+                if (confirm(`Remove "${exercise.name}" from this day? History is kept.`)) {
                   dispatch({ type: 'DELETE_EXERCISE', payload: { dayId, exerciseId: exercise.id } });
                 }
               }}
@@ -76,6 +87,7 @@ export const ExerciseCard = memo(function ExerciseCard({
         onClose={() => setShowHistory(false)}
         exerciseId={exercise.id}
         exerciseName={exercise.name}
+        exerciseType={exercise}
       />
     </>
   );

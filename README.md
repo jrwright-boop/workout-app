@@ -6,12 +6,18 @@ Runs as an installable PWA. All data lives on the device in `localStorage`; noth
 
 ## Features
 
-- **Days and exercises.** Build any split (Push / Pull / Legs, Upper / Lower, whatever). Reorder by drag, skip exercises without deleting them.
-- **Target rep ranges.** Set 8–12 on an exercise and the row lights up green when you hit the top of the range on every set. That's your cue to add weight next time.
+- **Days and exercises.** Build any split (Push / Pull / Legs, Upper / Lower, whatever). Reorder by drag, skip exercises without deleting them. Save a split as a **program** to switch between splits or share it as a link.
+- **One exercise library.** Adding "Bench Press" to a second day picks it from the library, so history, charts, and records follow the lift across days. Editing the name or type updates every day; sets and target range stay per day.
+- **Exercise types.** Plain weight, bodyweight (weight = added load), or **assisted** (weight = assistance, and progress means the number going *down*). Per-side for dumbbells, seconds for holds, and a custom weight step per exercise.
+- **Target rep ranges and auto-progression.** Set 8–12 on an exercise and the row lights up green when you hit the top of the range on every set. Next session pre-fills one step heavier (or one step *less* assistance) and says why. Edit it if it's too much.
 - **Pre-fill from last session.** Weights carry over from the last time you did the exercise (on any day). Reps show as placeholders you can accept with one tap.
+- **Warm-up sets.** Tap a set number to mark it as a warm-up. Warm-ups are excluded from volume, records, and the progression check.
+- **Personal records.** Heaviest, best estimated 1RM, most reps, longest hold, or least assistance, per exercise. The check button turns gold when a set beats one, and the workout summary lists them.
+- **Plate calculator.** Tap "Plates" on any barbell exercise to see what to load per side. Bar weight is configurable in Settings.
 - **Live session tools.** Rest timer with a wall-clock deadline (survives phone lock), workout timer, drop sets, per-exercise notes, add an exercise or a whole day's plan mid-workout.
-- **History and trends.** Per-exercise estimated 1RM and volume charts, searchable full history, edit past sets.
-- **Workout summary.** Duration, sets, volume vs. last time, and which exercises are ready to progress.
+- **History, calendar, and trends.** Month calendar with weekly stats and streak, searchable full history, edit past sets, per-exercise charts that change with the type (1RM and volume, or reps, or assistance with the axis flipped so down is good).
+- **Workout summary.** Duration, sets, volume vs. last time, new records, and which exercises are ready to progress.
+- **Real unit conversion.** The lbs/kg toggle converts every recorded weight (rounded to 0.25 lb / 0.1 kg). Settings has a "relabel only" option for data that was already entered in the other unit.
 - **Backup / restore.** Export everything as JSON from Settings. The app nudges you when a backup is more than 30 days old.
 
 ## Development
@@ -40,7 +46,11 @@ public/sw.js                   service worker (cache-first for hashed assets)
 
 ### Data model
 
-`AppState` (see `src/types/index.ts`) holds day templates, the active session, and completed history. Sessions snapshot exercise names and target ranges at start time so editing a template never rewrites the past. `schemaVersion` gates migrations in `storage/localStorage.ts`; bump it and add a migration step when the shape changes.
+`AppState` (see `src/types/index.ts`) holds day templates, the active session, completed history, and saved programs. Sessions snapshot exercise names, target ranges, and type at start time so editing a template never rewrites the past. When history is *read* (charts, records, pre-fill) it's reinterpreted under the exercise's current type, so marking an old exercise "assisted" retroactively fixes its charts.
+
+Exercise identity is the template id; the v5 migration gave same-named exercises across days one id and relinked history to it. Name matching (case-insensitive) is the fallback everywhere so one-off session exercises still count.
+
+`schemaVersion` gates migrations in `storage/localStorage.ts`; bump it and add a migration step when the shape changes. Stored and imported data is structurally validated; corrupt data lands on a recovery screen instead of a blank page.
 
 ### Service worker updates
 

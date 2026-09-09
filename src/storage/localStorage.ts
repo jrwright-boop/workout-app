@@ -1,5 +1,6 @@
-import type { AppState } from '../types';
-import { SCHEMA_VERSION } from '../types';
+import type { AppState, ExerciseId, Program, SessionExercise, SetEntry } from '../types';
+import { DEFAULT_BAR_WEIGHT, DEFAULT_TYPE_FIELDS, SCHEMA_VERSION } from '../types';
+import { exerciseKey } from '../utils/exerciseKey';
 
 export const STORAGE_KEY = 'workout-app-state';
 
@@ -13,6 +14,8 @@ export function getInitialState(): AppState {
     history: [],
     unit: 'lbs',
     restSeconds: 90,
+    barWeight: { ...DEFAULT_BAR_WEIGHT },
+    programs: [],
   };
 }
 
@@ -119,9 +122,33 @@ function isSession(v: unknown): boolean {
     && Array.isArray(v.exercises) && v.exercises.every(isSessionExercise);
 }
 
+const LOAD_TYPES = new Set(['external', 'bodyweight', 'assisted']);
+const MEASURES = new Set(['reps', 'seconds']);
+
+function isTemplate(v: unknown): boolean {
+  if (!isObj(v) || !isStr(v.id) || !isStr(v.name) || typeof v.defaultSetCount !== 'number') return false;
+  if (v.loadType !== undefined && !LOAD_TYPES.has(v.loadType as string)) return false;
+  if (v.measure !== undefined && !MEASURES.has(v.measure as string)) return false;
+  return true;
+}
+
 function isDay(v: unknown): boolean {
   if (!isObj(v) || !isStr(v.id) || !isStr(v.name) || !Array.isArray(v.exerciseOrder) || !isObj(v.exercises)) return false;
-  return v.exerciseOrder.every(id => isStr(id) && isObj(v.exercises) && isObj(v.exercises[id]));
+  const exercises = v.exercises;
+  return v.exerciseOrder.every(id => isStr(id) && isTemplate(exercises[id]));
+}
+
+function isProgram(v: unknown): boolean {
+  if (!isObj(v) || !isStr(v.id) || !isStr(v.name) || !Array.isArray(v.dayOrder) || !isObj(v.days)) return false;
+  const days = v.days;
+  return v.dayOrder.every(id => isStr(id) && isDay(days[id]));
+}
+
+/** Validate a shared/imported program on its own. */
+export function validateProgram(v: unknown): Program | null {
+  if (!isProgram(v)) return null;
+  const out: unknown = v;
+  return out as Program;
 }
 
 /**
@@ -139,6 +166,8 @@ export function validateAppState(v: unknown): AppState | null {
   if (v.activeSession !== null && !isSession(v.activeSession)) return null;
   if (v.unit !== 'lbs' && v.unit !== 'kg') return null;
   if (typeof v.restSeconds !== 'number') return null;
+  if (!isObj(v.barWeight) || typeof v.barWeight.lbs !== 'number' || typeof v.barWeight.kg !== 'number') return null;
+  if (!Array.isArray(v.programs) || !v.programs.every(isProgram)) return null;
   const out: unknown = v;
   return out as AppState;
 }
@@ -226,7 +255,83 @@ export function migrate(input: unknown): unknown {
     state.schemaVersion = 4;
   }
 
+  if (state.schemaVersion < 5) {
+    migrateToV5(state);
+    state.schemaVersion = 5;
+  }
+
   return state;
+}
+
+/**
+ * v5: exercise types (load type, per-side, measure, increment), warm-up and
+ * pre-fill fields on sets, plate-calculator bar weight, saved programs, and
+ * one identity per exercise name across days and history.
+ */
+function migrateToV5(state: AppState): void {
+  const fillSet = (set: SetEntry) => {
+    if (set.warmup === undefined) set.warmup = false;
+    if (set.prefilledWeight === undefined) set.prefilledWeight = null;
+    if (set.suggested === undefined) set.suggested = false;
+  };
+  const fillSessionExercise = (ex: SessionExercise) => {
+    if (ex.loadType === undefined) ex.loadType = DEFAULT_TYPE_FIELDS.loadType;
+    if (ex.perSide === undefined) ex.perSide = DEFAULT_TYPE_FIELDS.perSide;
+    if (ex.measure === undefined) ex.measure = DEFAULT_TYPE_FIELDS.measure;
+    if (ex.increment === undefined) ex.increment = DEFAULT_TYPE_FIELDS.increment;
+    for (const set of ex.sets ?? []) fillSet(set);
+  };
+
+  // Canonical id per normalised name: first occurrence in day order wins.
+  const canonical = new Map<string, ExerciseId>();
+  for (const dayId of state.dayOrder ?? []) {
+    const day = state.days[dayId];
+    if (!day) continue;
+    const renames = new Map<ExerciseId, ExerciseId>();
+    for (const exId of day.exerciseOrder ?? []) {
+      const ex = day.exercises[exId];
+      if (!ex) continue;
+      if (ex.loadType === undefined) ex.loadType = DEFAULT_TYPE_FIELDS.loadType;
+      if (ex.perSide === undefined) ex.perSide = DEFAULT_TYPE_FIELDS.perSide;
+      if (ex.measure === undefined) ex.measure = DEFAULT_TYPE_FIELDS.measure;
+      if (ex.increment === undefined) ex.increment = DEFAULT_TYPE_FIELDS.increment;
+
+      const key = exerciseKey(ex.name);
+      const canon = canonical.get(key);
+      if (!canon) {
+        canonical.set(key, ex.id);
+      } else if (canon !== ex.id) {
+        renames.set(ex.id, canon);
+      }
+    }
+    for (const [oldId, newId] of renames) {
+      const ex = day.exercises[oldId];
+      delete day.exercises[oldId];
+      day.exercises[newId] = { ...ex, id: newId };
+      day.exerciseOrder = day.exerciseOrder.map(id => (id === oldId ? newId : id));
+    }
+  }
+
+  // Point every logged exercise at the canonical id for its name.
+  const relink = (ex: SessionExercise) => {
+    const canon = canonical.get(exerciseKey(ex.name));
+    if (canon) ex.exerciseId = canon;
+  };
+  for (const session of state.history ?? []) {
+    for (const ex of session.exercises ?? []) {
+      fillSessionExercise(ex);
+      relink(ex);
+    }
+  }
+  if (state.activeSession) {
+    for (const ex of state.activeSession.exercises ?? []) {
+      fillSessionExercise(ex);
+      relink(ex);
+    }
+  }
+
+  if (state.barWeight === undefined) state.barWeight = { ...DEFAULT_BAR_WEIGHT };
+  if (state.programs === undefined) state.programs = [];
 }
 
 // ---------------------------------------------------------------------------

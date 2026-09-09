@@ -9,7 +9,8 @@ import { AddSessionExerciseForm } from './components/exercises/AddSessionExercis
 import { useLastSession } from './hooks/useExerciseHistory';
 import type { SessionExercise, WorkoutSession } from './types';
 import { formatDate, formatElapsed } from './utils/date';
-import { hitTopOfRange } from './utils/repRange';
+import { hitTopOfRange, progressionHint } from './utils/repRange';
+import { defaultIncrement } from './utils/units';
 import './ActiveSession.css';
 
 function SessionExerciseCard({
@@ -23,9 +24,11 @@ function SessionExerciseCard({
   onSetCompleted: () => void;
   dragHandleProps?: Record<string, unknown>;
 }) {
-  const { dispatch } = useWorkout();
+  const { state, dispatch } = useWorkout();
   const lastEntry = useLastSession(exercise.exerciseId, exercise.name);
   const readyToProgress = hitTopOfRange(exercise);
+  const suggestedSet = exercise.sets.find(s => s.suggested && s.weight != null);
+  const step = exercise.increment ?? defaultIncrement(state.unit);
 
   return (
     <div className={`session-exercise ${exercise.skipped ? 'session-exercise--skipped' : ''} ${readyToProgress ? 'session-exercise--progress' : ''}`}>
@@ -61,9 +64,14 @@ function SessionExerciseCard({
       </div>
       {!exercise.skipped && (
         <>
+          {suggestedSet && !readyToProgress && (
+            <div className="suggestion-banner">
+              ↑ Pre-filled {exercise.loadType === 'assisted' ? `${step} ${state.unit} less assistance` : `+${step} ${state.unit}`}: you hit the top of your range last time. Edit if it's too much.
+            </div>
+          )}
           {readyToProgress && (
             <div className="progress-banner">
-              🎯 Hit the top of your range on every set — increase the weight next time!
+              🎯 Hit the top of your range on every set — {progressionHint(exercise.loadType, exercise.measure)}
             </div>
           )}
           <SetList exercise={exercise} exerciseIndex={exerciseIndex} onSetCompleted={onSetCompleted} />

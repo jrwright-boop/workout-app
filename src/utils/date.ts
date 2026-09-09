@@ -42,3 +42,24 @@ export function formatElapsed(totalSeconds: number): string {
   const ss = String(s).padStart(2, '0');
   return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
+
+/** "Today", "Yesterday", "3d ago", "2w ago", "3mo ago". */
+export function formatRelativeDay(iso: string, now: Date = new Date()): string {
+  const then = parseISO(iso);
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startThen = new Date(then.getFullYear(), then.getMonth(), then.getDate());
+  const days = Math.round((startToday.getTime() - startThen.getTime()) / 86_400_000);
+  if (days <= 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  if (days < 14) return `${days}d ago`;
+  if (days < 60) return `${Math.floor(days / 7)}w ago`;
+  return `${Math.floor(days / 30)}mo ago`;
+}
+
+/** Whole-minute duration between two timestamps: "52m", "1h 05m". */
+export function formatDuration(startIso: string, endIso: string): string {
+  const mins = Math.max(0, Math.round((parseISO(endIso).getTime() - parseISO(startIso).getTime()) / 60_000));
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h > 0 ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m`;
+}

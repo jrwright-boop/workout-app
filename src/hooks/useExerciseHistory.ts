@@ -1,38 +1,46 @@
 import { useMemo } from 'react';
 import { useWorkout } from './useWorkout';
-import type { ExerciseId, SessionExercise, WorkoutSession } from '../types';
-import { findLastPerformed, wasPerformed } from '../utils/exerciseHistory';
+import type { ExerciseId, ExerciseTypeFields } from '../types';
+import { findAllPerformed, withType, type HistoryEntry } from '../utils/exerciseHistory';
+import { computeRecords, type Records } from '../utils/records';
+import { buildExerciseLibrary } from '../utils/library';
 
-export interface ExerciseHistoryEntry {
-  session: WorkoutSession;
-  exercise: SessionExercise;
+export type ExerciseHistoryEntry = HistoryEntry;
+
+/**
+ * All performed instances of an exercise, newest first. Matches by id OR
+ * name so the same lift on a different day (or logged as a one-off) counts.
+ * Entries are re-read under `type` (the exercise's current type) when given,
+ * otherwise under the newest entry's type, so old sets follow a type change.
+ */
+export function useExerciseHistory(
+  exerciseId: ExerciseId | null,
+  exerciseName?: string | null,
+  type?: ExerciseTypeFields | null
+): ExerciseHistoryEntry[] {
+  const { state } = useWorkout();
+  return useMemo(() => {
+    const raw = findAllPerformed(state.history, exerciseId, exerciseName);
+    return withType(raw, type ?? raw[0]?.exercise ?? null);
+  }, [state.history, exerciseId, exerciseName, type]);
 }
 
-export function useExerciseHistory(exerciseId: ExerciseId): ExerciseHistoryEntry[] {
-  const { state } = useWorkout();
-
-  return useMemo(() => {
-    return state.history
-      .map(session => {
-        // Ignore entries where the exercise was skipped or left empty — they
-        // hold no data for charts or "Last:" displays.
-        const exercise = session.exercises.find(e => e.exerciseId === exerciseId && wasPerformed(e));
-        if (!exercise) return null;
-        return { session, exercise };
-      })
-      .filter((e): e is ExerciseHistoryEntry => e !== null);
-  }, [state.history, exerciseId]);
+export function useLastSession(exerciseId: ExerciseId | null, exerciseName?: string | null): ExerciseHistoryEntry | null {
+  const history = useExerciseHistory(exerciseId, exerciseName);
+  return history[0] ?? null;
 }
 
-export function useLastSession(exerciseId: ExerciseId, exerciseName?: string): ExerciseHistoryEntry | null {
-  const { state } = useWorkout();
-  const history = useExerciseHistory(exerciseId);
+/** Best-ever numbers for an exercise across all history, under its current type. */
+export function useExerciseRecords(
+  exerciseId: ExerciseId | null,
+  exerciseName: string | null | undefined,
+  type: ExerciseTypeFields | null | undefined
+): Records {
+  const history = useExerciseHistory(exerciseId, exerciseName, type);
+  return useMemo(() => computeRecords(history.map(h => h.exercise)), [history]);
+}
 
-  // Fall back to name-based lookup for exercises added mid-session (which get
-  // a fresh exerciseId and therefore won't match prior template entries).
-  return useMemo(() => {
-    if (history[0]) return history[0];
-    if (!exerciseName) return null;
-    return findLastPerformed(state.history, null, exerciseName);
-  }, [history, exerciseName, state.history]);
+export function useExerciseLibrary() {
+  const { state } = useWorkout();
+  return useMemo(() => buildExerciseLibrary(state), [state]);
 }

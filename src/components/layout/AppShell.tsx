@@ -13,7 +13,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   const backupOverdue = !showSettings && isBackupOverdue(state.history.length);
 
   const toggleUnit = () => {
-    dispatch({ type: 'SET_UNIT', payload: { unit: state.unit === 'lbs' ? 'kg' : 'lbs' } });
+    const unit = state.unit === 'lbs' ? 'kg' : 'lbs';
+    const hasWeights = state.history.length > 0 || !!state.activeSession;
+    if (hasWeights && !confirm(`Convert all recorded weights from ${state.unit} to ${unit}? (To change only the label, use Settings.)`)) return;
+    dispatch({ type: 'SET_UNIT', payload: { unit, convert: true } });
   };
 
   return (
