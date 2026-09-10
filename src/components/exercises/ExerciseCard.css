@@ -94,3 +94,28 @@
 .delete-btn:active {
   color: var(--danger);
 }
+
+.type-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg);
+  padding: 2px 7px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.progress-note {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: var(--burndown-accent);
+}
+
+.superset-badge {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}

@@ -3,29 +3,15 @@ import { Modal } from '../common/Modal';
 import { useWorkout } from '../../hooks/useWorkout';
 import { hitTopOfRange } from '../../utils/repRange';
 import { formatElapsed } from '../../utils/date';
+import { sessionVolume } from '../../utils/metrics';
+import { computeRecords, exerciseRecordsBeaten, recordLabel } from '../../utils/records';
+import { findAllPerformed, withType } from '../../utils/exerciseHistory';
 import type { WorkoutSession } from '../../types';
 import './WorkoutSummaryModal.css';
 
 interface WorkoutSummaryModalProps {
   session: WorkoutSession | null;
   onClose: () => void;
-}
-
-// Same rule the charts use: any set with both fields logged counts.
-function sessionVolume(session: WorkoutSession): number {
-  let volume = 0;
-  for (const ex of session.exercises) {
-    if (ex.skipped) continue;
-    for (const set of ex.sets) {
-      if (set.weight != null && set.reps != null) volume += set.weight * set.reps;
-    }
-    if (ex.burndown) {
-      for (const drop of ex.burndown.drops) {
-        if (drop.weight != null && drop.reps != null) volume += drop.weight * drop.reps;
-      }
-    }
-  }
-  return volume;
 }
 
 export function WorkoutSummaryModal({ session, onClose }: WorkoutSummaryModalProps) {
@@ -50,11 +36,19 @@ export function WorkoutSummaryModal({ session, onClose }: WorkoutSummaryModalPro
 
     // Most recent earlier session of the same day, for a volume comparison.
     // (By the time this renders, the finished session is already in history.)
-    const previous = state.history.find(s => s.dayId === session.dayId && s.id !== session.id);
+    const priorHistory = state.history.filter(s => s.id !== session.id);
+    const previous = priorHistory.find(s => s.dayId === session.dayId);
     const prevVolume = previous ? sessionVolume(previous) : 0;
     const volumeDelta = prevVolume > 0 ? Math.round(((volume - prevVolume) / prevVolume) * 100) : null;
 
-    return { durationSec, completedSets, totalSets, volume, progressed, volumeDelta };
+    // Personal records: compare each exercise against everything before today.
+    const records = active.flatMap(ex => {
+      const prior = computeRecords(withType(findAllPerformed(priorHistory, ex.exerciseId, ex.name), ex));
+      const kinds = exerciseRecordsBeaten(ex, prior, session.bodyweight);
+      return kinds.map(k => `${ex.name}: ${recordLabel(k).toLowerCase()}`);
+    });
+
+    return { durationSec, completedSets, totalSets, volume, progressed, volumeDelta, records };
   }, [session, state.history]);
 
   if (!session || !summary) return null;
@@ -66,8 +60,8 @@ export function WorkoutSummaryModal({ session, onClose }: WorkoutSummaryModalPro
 
         <div className="summary-stats">
           <div className="summary-stat">
-            <span className="summary-stat-value">{formatElapsed(summary.durationSec)}</span>
-            <span className="summary-stat-label">Duration</span>
+            <span className="summary-stat-value">{session.backdated ? '—' : formatElapsed(summary.durationSec)}</span>
+            <span className="summary-stat-label">{session.backdated ? 'Logged later' : 'Duration'}</span>
           </div>
           <div className="summary-stat">
             <span className="summary-stat-value">{summary.completedSets}/{summary.totalSets}</span>
@@ -89,9 +83,18 @@ export function WorkoutSummaryModal({ session, onClose }: WorkoutSummaryModalPro
           </div>
         </div>
 
+        {summary.records.length > 0 && (
+          <div className="summary-records">
+            <span className="summary-records-title">🏆 New personal records</span>
+            {summary.records.map(r => (
+              <span key={r} className="summary-records-item">{r}</span>
+            ))}
+          </div>
+        )}
+
         {summary.progressed.length > 0 && (
           <div className="summary-progressed">
-            <span className="summary-progressed-title">🎯 Ready to add weight next time</span>
+            <span className="summary-progressed-title">🎯 Ready to progress next time</span>
             <span className="summary-progressed-names">{summary.progressed.join(', ')}</span>
           </div>
         )}

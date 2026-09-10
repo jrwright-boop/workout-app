@@ -28,7 +28,7 @@ function SortableDayItem({ dayId, name, onRename, onDelete }: {
 
   return (
     <div ref={setNodeRef} style={style} className="day-manager-item">
-      <button className="drag-handle" {...attributes} {...listeners}>
+      <button className="drag-handle" aria-label={`Reorder ${name}`} {...attributes} {...listeners}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
           <circle cx="9" cy="6" r="2" /><circle cx="15" cy="6" r="2" />
           <circle cx="9" cy="12" r="2" /><circle cx="15" cy="12" r="2" />
@@ -43,7 +43,7 @@ function SortableDayItem({ dayId, name, onRename, onDelete }: {
 }
 
 export function DayManager({ open, onClose }: DayManagerProps) {
-  const { state, dispatch } = useWorkout();
+  const { state, dispatch, dispatchUndoable } = useWorkout();
   const [newDayName, setNewDayName] = useState('');
 
   const handleAdd = () => {
@@ -63,8 +63,8 @@ export function DayManager({ open, onClose }: DayManagerProps) {
 
   const handleDelete = (dayId: DayId) => {
     const day = state.days[dayId];
-    if (confirm(`Delete "${day.name}" and all its exercises?`)) {
-      dispatch({ type: 'DELETE_DAY', payload: { dayId } });
+    if (confirm(`Delete "${day.name}" and all its exercises? History is kept.`)) {
+      dispatchUndoable({ type: 'DELETE_DAY', payload: { dayId } }, `Deleted ${day.name}`);
     }
   };
 

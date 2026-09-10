@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useWorkout } from '../../hooks/useWorkout';
 import { DayTab } from './DayTab';
 import { DayManager } from './DayManager';
+import { formatDuration, formatRelativeDay } from '../../utils/date';
 import './DayTabBar.css';
 
 export function DayTabBar() {
@@ -14,16 +15,22 @@ export function DayTabBar() {
         <div className="day-tabs-scroll">
           {state.dayOrder.map(dayId => {
             const day = state.days[dayId];
+            // History is newest-first, so the first match is the latest.
+            const last = state.history.find(s => s.dayId === dayId);
+            const sublabel = last
+              ? `${formatRelativeDay(last.startedAt)}${last.completedAt && !last.backdated ? ` · ${formatDuration(last.startedAt, last.completedAt)}` : ''}`
+              : null;
             return (
               <DayTab
                 key={dayId}
                 name={day.name}
+                sublabel={sublabel}
                 active={dayId === state.activeDayId}
                 onClick={() => dispatch({ type: 'SET_ACTIVE_DAY', payload: { dayId } })}
               />
             );
           })}
-          <button className="add-day-btn" onClick={() => setShowManager(true)}>
+          <button className="add-day-btn" onClick={() => setShowManager(true)} aria-label="Add day">
             +
           </button>
         </div>
@@ -31,6 +38,7 @@ export function DayTabBar() {
           <button
             className="manage-days-btn"
             onClick={() => setShowManager(true)}
+            aria-label="Manage days"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" />

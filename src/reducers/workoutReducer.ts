@@ -1,18 +1,144 @@
-import type { AppState, WorkoutAction, WorkoutSession, SessionExercise, SetEntry, DropEntry } from '../types';
+import type {
+  AppState, WorkoutAction, WorkoutSession, SessionExercise, SetEntry, DropEntry,
+  ExerciseTemplate, ExerciseTypeFields, Unit, Program, DayTemplate,
+} from '../types';
 import { generateId } from '../utils/id';
-import { toISODate } from '../utils/date';
-import { findLastPerformed } from '../utils/exerciseHistory';
+import { parseISO, toISODate } from '../utils/date';
+import { startOfWeek } from '../utils/calendar';
+import { bodyweightOn, upsertBodyweight } from '../utils/bodyweight';
+import { findLastForDay, findLastPerformed } from '../utils/exerciseHistory';
+import { hitTopOfRange } from '../utils/repRange';
+import { workingSets } from '../utils/metrics';
+import { convertWeight, defaultIncrement } from '../utils/units';
 
-function buildSetsFromLast(lastEx: SessionExercise | undefined, count: number): SetEntry[] {
+type PrefillSource = ExerciseTypeFields & { targetRepMax: number | null };
+
+/**
+ * Build a fresh set list for an exercise, pre-filled from the last time it
+ * was performed. If that session hit the top of the target range on every
+ * working set, the weight is nudged by one increment (down for assisted
+ * work) and the set is flagged `suggested` so the UI can say why.
+ */
+function buildSetsFromLast(
+  lastEx: SessionExercise | undefined,
+  count: number,
+  tpl: PrefillSource,
+  unit: Unit,
+  /** False when the source session was a deload: its numbers pre-fill but never trigger a step up. */
+  allowSuggestion = true
+): SetEntry[] {
+  const lastWorking = lastEx ? workingSets(lastEx) : [];
+  const progress = allowSuggestion && !!lastEx && tpl.targetRepMax != null && hitTopOfRange(lastEx);
+  const inc = tpl.increment ?? defaultIncrement(unit);
+
   return Array.from({ length: count }, (_, i) => {
-    const lastSet = lastEx?.sets[i];
+    const lastSet = lastWorking[i];
+    const lastWeight = lastSet?.weight ?? null;
+    let weight = lastWeight;
+    let suggested = false;
+    if (progress && lastWeight != null) {
+      weight = tpl.loadType === 'assisted' ? Math.max(0, lastWeight - inc) : lastWeight + inc;
+      suggested = true;
+    }
     return {
-      weight: lastSet?.weight ?? null,
+      weight,
       reps: null,
       completed: false,
       repsFromLastSession: lastSet?.reps ?? null,
+      warmup: false,
+      prefilledWeight: weight,
+      suggested,
     };
   });
+}
+
+function emptySet(): SetEntry {
+  return { weight: null, reps: null, completed: false, repsFromLastSession: null, warmup: false, prefilledWeight: null, suggested: false };
+}
+
+/**
+ * Build a session exercise from a day template. Scheduled exercises pre-fill
+ * from the same day's scheduled history first (so a heavy day never inherits
+ * a light day's numbers), falling back to any instance. Make-ups (a day's
+ * plan pulled into another session) use the most recent instance anywhere.
+ */
+function sessionExerciseFromTemplate(
+  ex: ExerciseTemplate,
+  state: AppState,
+  dayId: string,
+  origin: SessionExercise['origin'],
+  history: WorkoutSession[] = state.history
+): SessionExercise {
+  const last = origin === 'scheduled'
+    ? findLastForDay(history, ex.id, ex.name, dayId).last
+    : findLastPerformed(history, ex.id, ex.name, { excludeDeload: true }) ?? findLastPerformed(history, ex.id, ex.name);
+  return {
+    exerciseId: ex.id,
+    name: ex.name,
+    origin,
+    supersetGroup: origin === 'scheduled' ? ex.supersetGroup : null,
+    sets: buildSetsFromLast(last?.exercise, ex.defaultSetCount, ex, state.unit, !last?.session.deload),
+    burndown: null,
+    notes: '',
+    skipped: false,
+    targetRepMin: ex.targetRepMin,
+    targetRepMax: ex.targetRepMax,
+    loadType: ex.loadType,
+    perSide: ex.perSide,
+    measure: ex.measure,
+    increment: ex.increment,
+  };
+}
+
+/** Immutable helper: apply `fn` to one exercise of the active session. */
+function updateSessionExercise(
+  state: AppState,
+  exerciseIndex: number,
+  fn: (ex: SessionExercise) => SessionExercise | null
+): AppState {
+  if (!state.activeSession) return state;
+  const current = state.activeSession.exercises[exerciseIndex];
+  if (!current) return state;
+  const next = fn(current);
+  if (!next || next === current) return state;
+  const exercises = [...state.activeSession.exercises];
+  exercises[exerciseIndex] = next;
+  return { ...state, activeSession: { ...state.activeSession, exercises } };
+}
+
+function convertSets(sets: SetEntry[], from: Unit, to: Unit): SetEntry[] {
+  return sets.map(s => ({
+    ...s,
+    weight: s.weight == null ? null : convertWeight(s.weight, from, to),
+    prefilledWeight: s.prefilledWeight == null ? null : convertWeight(s.prefilledWeight, from, to),
+  }));
+}
+
+function convertSession(session: WorkoutSession, from: Unit, to: Unit): WorkoutSession {
+  return {
+    ...session,
+    bodyweight: session.bodyweight == null ? null : convertWeight(session.bodyweight, from, to),
+    exercises: session.exercises.map(ex => ({
+      ...ex,
+      increment: ex.increment == null ? null : convertWeight(ex.increment, from, to),
+      sets: convertSets(ex.sets, from, to),
+      burndown: ex.burndown
+        ? { drops: ex.burndown.drops.map(d => ({ ...d, weight: d.weight == null ? null : convertWeight(d.weight, from, to) })) }
+        : null,
+    })),
+  };
+}
+
+function convertDays(days: Record<string, DayTemplate>, from: Unit, to: Unit): Record<string, DayTemplate> {
+  const out: Record<string, DayTemplate> = {};
+  for (const [dayId, day] of Object.entries(days)) {
+    const exercises: Record<string, ExerciseTemplate> = {};
+    for (const [exId, ex] of Object.entries(day.exercises)) {
+      exercises[exId] = { ...ex, increment: ex.increment == null ? null : convertWeight(ex.increment, from, to) };
+    }
+    out[dayId] = { ...day, exercises };
+  }
+  return out;
 }
 
 export function workoutReducer(state: AppState, action: WorkoutAction): AppState {
@@ -64,9 +190,11 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
       return { ...state, activeDayId: action.payload.dayId };
 
     case 'ADD_EXERCISE': {
-      const { dayId, name, defaultSetCount, targetRepMin, targetRepMax } = action.payload;
-      const exerciseId = generateId();
+      const { dayId, id, name, defaultSetCount, targetRepMin, targetRepMax, loadType, perSide, measure, increment, cues, muscles } = action.payload;
       const day = state.days[dayId];
+      if (!day) return state;
+      const exerciseId = id ?? generateId();
+      if (day.exercises[exerciseId]) return state;
       return {
         ...state,
         days: {
@@ -76,7 +204,11 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
             exerciseOrder: [...day.exerciseOrder, exerciseId],
             exercises: {
               ...day.exercises,
-              [exerciseId]: { id: exerciseId, name, defaultSetCount, skipped: false, targetRepMin, targetRepMax },
+              [exerciseId]: {
+                id: exerciseId, name, defaultSetCount, skipped: false,
+                targetRepMin, targetRepMax, loadType, perSide, measure, increment,
+                cues, muscles, supersetGroup: null,
+              },
             },
           },
         },
@@ -84,21 +216,21 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
     }
 
     case 'EDIT_EXERCISE': {
-      const { dayId, exerciseId, name, defaultSetCount, targetRepMin, targetRepMax } = action.payload;
-      const day = state.days[dayId];
-      return {
-        ...state,
-        days: {
-          ...state.days,
-          [dayId]: {
-            ...day,
-            exercises: {
-              ...day.exercises,
-              [exerciseId]: { ...day.exercises[exerciseId], name, defaultSetCount, targetRepMin, targetRepMax },
-            },
-          },
-        },
-      };
+      const { dayId, exerciseId, name, defaultSetCount, targetRepMin, targetRepMax, loadType, perSide, measure, increment, cues, muscles } = action.payload;
+      // Identity-level fields (name, type) belong to the exercise and follow
+      // it to every day that includes it; sets and target range stay per day,
+      // since a heavy day and a light day can legitimately differ.
+      const days: Record<string, DayTemplate> = {};
+      for (const [id, day] of Object.entries(state.days)) {
+        const ex = day.exercises[exerciseId];
+        if (!ex) { days[id] = day; continue; }
+        const perDay = id === dayId ? { defaultSetCount, targetRepMin, targetRepMax } : {};
+        days[id] = {
+          ...day,
+          exercises: { ...day.exercises, [exerciseId]: { ...ex, name, loadType, perSide, measure, increment, cues, muscles, ...perDay } },
+        };
+      }
+      return { ...state, days };
     }
 
     case 'DELETE_EXERCISE': {
@@ -117,6 +249,53 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
           },
         },
       };
+    }
+
+    case 'COPY_EXERCISE_TO_DAY': {
+      const { fromDayId, toDayId, exerciseId } = action.payload;
+      const source = state.days[fromDayId]?.exercises[exerciseId];
+      const target = state.days[toDayId];
+      if (!source || !target || target.exercises[exerciseId]) return state;
+      return {
+        ...state,
+        days: {
+          ...state.days,
+          [toDayId]: {
+            ...target,
+            exerciseOrder: [...target.exerciseOrder, exerciseId],
+            exercises: { ...target.exercises, [exerciseId]: { ...source, skipped: false, supersetGroup: null } },
+          },
+        },
+      };
+    }
+
+    case 'SET_SUPERSET': {
+      // Link an exercise with another on the same day (they share a group id)
+      // or unlink it (withExerciseId null). Groups are pairs or longer chains;
+      // linking to an already-grouped exercise joins that group.
+      const { dayId, exerciseId, withExerciseId } = action.payload;
+      const day = state.days[dayId];
+      const ex = day?.exercises[exerciseId];
+      if (!ex) return state;
+      const exercises = { ...day.exercises };
+      if (!withExerciseId) {
+        exercises[exerciseId] = { ...ex, supersetGroup: null };
+        // A group of one is no group.
+        const remaining = Object.values(exercises).filter(e => e.supersetGroup && e.supersetGroup === ex.supersetGroup);
+        if (remaining.length === 1) exercises[remaining[0].id] = { ...remaining[0], supersetGroup: null };
+      } else {
+        const partner = day.exercises[withExerciseId];
+        if (!partner) return state;
+        const group = partner.supersetGroup ?? ex.supersetGroup ?? generateId();
+        exercises[exerciseId] = { ...ex, supersetGroup: group };
+        exercises[withExerciseId] = { ...partner, supersetGroup: group };
+        // Keep partners adjacent so the session shows them together.
+        const order = day.exerciseOrder.filter(id => id !== exerciseId);
+        const at = order.indexOf(withExerciseId);
+        order.splice(at + 1, 0, exerciseId);
+        return { ...state, days: { ...state.days, [dayId]: { ...day, exercises, exerciseOrder: order } } };
+      }
+      return { ...state, days: { ...state.days, [dayId]: { ...day, exercises } } };
     }
 
     case 'REORDER_EXERCISES': {
@@ -147,40 +326,32 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
     }
 
     case 'START_SESSION': {
-      const { dayId } = action.payload;
+      const { dayId, backdate } = action.payload;
       const day = state.days[dayId];
-      const now = new Date().toISOString();
+      // A backdated session starts at local noon on that day and pre-fills
+      // only from history that came before it.
+      const start = backdate ? new Date(parseISO(backdate).getTime() + 12 * 3600 * 1000) : new Date();
+      const startedAt = start.toISOString();
+      const date = toISODate(start);
+      const history = backdate ? state.history.filter(h => h.startedAt < startedAt) : state.history;
+      const weekKey = toISODate(startOfWeek(start));
 
       const exercises: SessionExercise[] = day.exerciseOrder
         .map(eid => day.exercises[eid])
         .filter(ex => !ex.skipped)
-        .map(ex => {
-          // Pre-fill from the last time this exercise was actually performed,
-          // searching past sessions of any day and skipping entries where it
-          // was skipped or left empty.
-          const lastEx = findLastPerformed(state.history, ex.id, ex.name)?.exercise;
-          const sets = buildSetsFromLast(lastEx, ex.defaultSetCount);
-
-          return {
-            exerciseId: ex.id,
-            name: ex.name,
-            sets,
-            burndown: null,
-            notes: '',
-            skipped: false,
-            targetRepMin: ex.targetRepMin,
-            targetRepMax: ex.targetRepMax,
-          };
-        });
+        .map(ex => sessionExerciseFromTemplate(ex, state, dayId, 'scheduled', history));
 
       const session: WorkoutSession = {
         id: generateId(),
         dayId,
         dayName: day.name,
-        date: toISODate(),
-        startedAt: now,
+        date,
+        startedAt,
         completedAt: null,
         exercises,
+        bodyweight: bodyweightOn(state.bodyweightLog, date),
+        deload: state.deloadWeeks.includes(weekKey),
+        backdated: !!backdate,
       };
 
       return { ...state, activeSession: session };
@@ -190,12 +361,17 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
       if (!state.activeSession) return state;
       const completed: WorkoutSession = {
         ...state.activeSession,
-        completedAt: new Date().toISOString(),
+        // A backdated session has no real duration; mark it done at its start.
+        completedAt: state.activeSession.backdated ? state.activeSession.startedAt : new Date().toISOString(),
       };
+      // History is newest-first; a backdated session slots into place.
+      const at = state.history.findIndex(h => h.startedAt <= completed.startedAt);
+      const history = [...state.history];
+      history.splice(at === -1 ? history.length : at, 0, completed);
       return {
         ...state,
         activeSession: null,
-        history: [completed, ...state.history],
+        history,
       };
     }
 
@@ -203,129 +379,124 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
       return { ...state, activeSession: null };
 
     case 'UPDATE_SET': {
-      if (!state.activeSession) return state;
       const { exerciseIndex, setIndex, field, value } = action.payload;
-      const exercises = [...state.activeSession.exercises];
-      const ex = { ...exercises[exerciseIndex] };
-      const sets = [...ex.sets];
-      sets[setIndex] = { ...sets[setIndex], [field]: value };
-      ex.sets = sets;
-      exercises[exerciseIndex] = ex;
-      return { ...state, activeSession: { ...state.activeSession, exercises } };
+      return updateSessionExercise(state, exerciseIndex, ex => {
+        const sets = [...ex.sets];
+        const current = sets[setIndex];
+        if (!current) return null;
+        // Editing the weight by hand retires the suggestion hint.
+        const suggested = field === 'weight' && value !== current.prefilledWeight ? false : current.suggested;
+        sets[setIndex] = { ...current, [field]: value, suggested };
+        return { ...ex, sets };
+      });
     }
 
     case 'TOGGLE_SET_COMPLETE': {
-      if (!state.activeSession) return state;
       const { exerciseIndex, setIndex } = action.payload;
-      const exercises = [...state.activeSession.exercises];
-      const ex = { ...exercises[exerciseIndex] };
-      const sets = [...ex.sets];
-      const currentSet = sets[setIndex];
-      const nowCompleting = !currentSet.completed;
-      sets[setIndex] = {
-        ...currentSet,
-        completed: nowCompleting,
-        // Auto-fill reps from last session placeholder when completing
-        reps: nowCompleting && currentSet.reps === null && currentSet.repsFromLastSession !== null
-          ? currentSet.repsFromLastSession
-          : currentSet.reps,
-      };
+      return updateSessionExercise(state, exerciseIndex, ex => {
+        const sets = [...ex.sets];
+        const currentSet = sets[setIndex];
+        if (!currentSet) return null;
+        const nowCompleting = !currentSet.completed;
+        sets[setIndex] = {
+          ...currentSet,
+          completed: nowCompleting,
+          // Auto-fill reps from last session placeholder when completing
+          reps: nowCompleting && currentSet.reps === null && currentSet.repsFromLastSession !== null
+            ? currentSet.repsFromLastSession
+            : currentSet.reps,
+        };
 
-      // Carry the completed weight forward: later uncompleted sets that are
-      // still at their pre-filled value (or empty) follow the change, while
-      // deliberately edited sets are left alone.
-      const completedWeight = sets[setIndex].weight;
-      if (nowCompleting && completedWeight != null) {
-        const lastEx = findLastPerformed(state.history, ex.exerciseId, ex.name)?.exercise;
-        for (let j = setIndex + 1; j < sets.length; j++) {
-          const s = sets[j];
-          if (s.completed) continue;
-          const prefill = lastEx?.sets[j]?.weight ?? null;
-          if ((s.weight === null || s.weight === prefill) && s.weight !== completedWeight) {
-            sets[j] = { ...s, weight: completedWeight };
+        // Carry the completed weight forward: later uncompleted working sets
+        // that are still at their pre-filled value (or empty) follow the
+        // change, while deliberately edited sets are left alone.
+        const completedWeight = sets[setIndex].weight;
+        if (nowCompleting && completedWeight != null && !currentSet.warmup) {
+          for (let j = setIndex + 1; j < sets.length; j++) {
+            const s = sets[j];
+            if (s.completed || s.warmup) continue;
+            if ((s.weight === null || s.weight === s.prefilledWeight) && s.weight !== completedWeight) {
+              sets[j] = { ...s, weight: completedWeight, suggested: false };
+            }
           }
         }
-      }
+        return { ...ex, sets };
+      });
+    }
 
-      ex.sets = sets;
-      exercises[exerciseIndex] = ex;
-      return { ...state, activeSession: { ...state.activeSession, exercises } };
+    case 'TOGGLE_SET_WARMUP': {
+      const { exerciseIndex, setIndex } = action.payload;
+      return updateSessionExercise(state, exerciseIndex, ex => {
+        const sets = [...ex.sets];
+        const current = sets[setIndex];
+        if (!current) return null;
+        sets[setIndex] = { ...current, warmup: !current.warmup };
+        return { ...ex, sets };
+      });
     }
 
     case 'ADD_SET': {
-      if (!state.activeSession) return state;
       const { exerciseIndex } = action.payload;
-      const exercises = [...state.activeSession.exercises];
-      const ex = { ...exercises[exerciseIndex] };
-      ex.sets = [...ex.sets, { weight: null, reps: null, completed: false, repsFromLastSession: null }];
-      exercises[exerciseIndex] = ex;
-      return { ...state, activeSession: { ...state.activeSession, exercises } };
+      return updateSessionExercise(state, exerciseIndex, ex => ({ ...ex, sets: [...ex.sets, emptySet()] }));
     }
 
     case 'REMOVE_SET': {
-      if (!state.activeSession) return state;
       const { exerciseIndex, setIndex } = action.payload;
-      const exercises = [...state.activeSession.exercises];
-      const ex = { ...exercises[exerciseIndex] };
-      ex.sets = ex.sets.filter((_, i) => i !== setIndex);
-      exercises[exerciseIndex] = ex;
-      return { ...state, activeSession: { ...state.activeSession, exercises } };
+      return updateSessionExercise(state, exerciseIndex, ex => ({ ...ex, sets: ex.sets.filter((_, i) => i !== setIndex) }));
     }
 
     case 'UPDATE_BURNDOWN_DROP': {
-      if (!state.activeSession) return state;
       const { exerciseIndex, dropIndex, field, value } = action.payload;
-      const exercises = [...state.activeSession.exercises];
-      const ex = { ...exercises[exerciseIndex] };
-      if (!ex.burndown) return state;
-      const drops = [...ex.burndown.drops];
-      drops[dropIndex] = { ...drops[dropIndex], [field]: value };
-      ex.burndown = { drops };
-      exercises[exerciseIndex] = ex;
-      return { ...state, activeSession: { ...state.activeSession, exercises } };
+      return updateSessionExercise(state, exerciseIndex, ex => {
+        if (!ex.burndown) return null;
+        const drops = [...ex.burndown.drops];
+        drops[dropIndex] = { ...drops[dropIndex], [field]: value };
+        return { ...ex, burndown: { drops } };
+      });
     }
 
     case 'TOGGLE_SESSION_BURNDOWN': {
-      if (!state.activeSession) return state;
       const { exerciseIndex } = action.payload;
-      const exercises = [...state.activeSession.exercises];
-      const ex = { ...exercises[exerciseIndex] };
-      if (ex.burndown) {
-        ex.burndown = null;
-      } else {
-        ex.burndown = {
-          drops: Array.from({ length: 3 }, (): DropEntry => ({ weight: null, reps: null })),
-        };
-      }
-      exercises[exerciseIndex] = ex;
-      return { ...state, activeSession: { ...state.activeSession, exercises } };
+      return updateSessionExercise(state, exerciseIndex, ex => ({
+        ...ex,
+        burndown: ex.burndown
+          ? null
+          : { drops: Array.from({ length: 3 }, (): DropEntry => ({ weight: null, reps: null })) },
+      }));
     }
 
     case 'SET_SESSION_DROP_COUNT': {
-      if (!state.activeSession) return state;
       const { exerciseIndex, count } = action.payload;
-      const exercises = [...state.activeSession.exercises];
-      const ex = { ...exercises[exerciseIndex] };
-      if (!ex.burndown) return state;
-      const currentDrops = ex.burndown.drops;
-      const newDrops: DropEntry[] = Array.from({ length: count }, (_, i) =>
-        i < currentDrops.length ? currentDrops[i] : { weight: null, reps: null }
-      );
-      ex.burndown = { drops: newDrops };
-      exercises[exerciseIndex] = ex;
-      return { ...state, activeSession: { ...state.activeSession, exercises } };
+      return updateSessionExercise(state, exerciseIndex, ex => {
+        if (!ex.burndown) return null;
+        const currentDrops = ex.burndown.drops;
+        const drops: DropEntry[] = Array.from({ length: count }, (_, i) =>
+          i < currentDrops.length ? currentDrops[i] : { weight: null, reps: null }
+        );
+        return { ...ex, burndown: { drops } };
+      });
     }
 
     case 'UPDATE_EXERCISE_NOTES': {
-      if (!state.activeSession) return state;
       const { exerciseIndex, notes } = action.payload;
-      const exercises = [...state.activeSession.exercises];
-      exercises[exerciseIndex] = { ...exercises[exerciseIndex], notes };
-      return { ...state, activeSession: { ...state.activeSession, exercises } };
+      return updateSessionExercise(state, exerciseIndex, ex => ({ ...ex, notes }));
     }
 
-    case 'SET_UNIT':
-      return { ...state, unit: action.payload.unit };
+    case 'SET_UNIT': {
+      const { unit, convert } = action.payload;
+      if (unit === state.unit) return state;
+      if (!convert) return { ...state, unit };
+      const from = state.unit;
+      return {
+        ...state,
+        unit,
+        days: convertDays(state.days, from, unit),
+        history: state.history.map(s => convertSession(s, from, unit)),
+        activeSession: state.activeSession ? convertSession(state.activeSession, from, unit) : null,
+        programs: state.programs.map(p => ({ ...p, days: convertDays(p.days, from, unit) })),
+        bodyweightLog: state.bodyweightLog.map(e => ({ ...e, weight: convertWeight(e.weight, from, unit) })),
+      };
+    }
 
     case 'REORDER_SESSION_EXERCISES': {
       if (!state.activeSession) return state;
@@ -333,11 +504,8 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
     }
 
     case 'TOGGLE_SESSION_EXERCISE_SKIP': {
-      if (!state.activeSession) return state;
       const { exerciseIndex } = action.payload;
-      const exercises = [...state.activeSession.exercises];
-      exercises[exerciseIndex] = { ...exercises[exerciseIndex], skipped: !exercises[exerciseIndex].skipped };
-      return { ...state, activeSession: { ...state.activeSession, exercises } };
+      return updateSessionExercise(state, exerciseIndex, ex => ({ ...ex, skipped: !ex.skipped }));
     }
 
     case 'ADD_SESSION_EXERCISE': {
@@ -345,34 +513,36 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
       const { exerciseId, name, defaultSetCount } = action.payload;
 
       // Pre-fill from the last time this exercise was actually performed.
-      // Prefers exerciseId match (stable across renames), falls back to name
-      // match so one-off exercises still pre-fill from same-named entries.
-      const lastEx = findLastPerformed(state.history, exerciseId, name)?.exercise;
-      const sets = buildSetsFromLast(lastEx, defaultSetCount);
+      const lastEntry = findLastPerformed(state.history, exerciseId, name, { excludeDeload: true })
+        ?? findLastPerformed(state.history, exerciseId, name);
+      const last = lastEntry?.exercise;
 
-      // Inherit the target rep range from the matching day template, if any.
-      let targetRepMin: number | null = null;
-      let targetRepMax: number | null = null;
-      if (exerciseId) {
-        for (const dayId of state.dayOrder) {
-          const tpl = state.days[dayId].exercises[exerciseId];
-          if (tpl) {
-            targetRepMin = tpl.targetRepMin;
-            targetRepMax = tpl.targetRepMax;
-            break;
-          }
-        }
+      // Inherit type and target range from the matching day template, if any;
+      // otherwise from the last logged instance.
+      let tpl: ExerciseTemplate | undefined;
+      for (const dayId of state.dayOrder) {
+        const candidate = exerciseId ? state.days[dayId].exercises[exerciseId] : undefined;
+        if (candidate) { tpl = candidate; break; }
       }
+      const source: PrefillSource = tpl ?? last ?? {
+        loadType: 'external', perSide: false, measure: 'reps', increment: null, targetRepMax: null,
+      };
 
       const newExercise: SessionExercise = {
-        exerciseId: exerciseId ?? generateId(),
+        exerciseId: exerciseId ?? last?.exerciseId ?? generateId(),
         name,
-        sets,
+        origin: 'makeup',
+        supersetGroup: null,
+        sets: buildSetsFromLast(last, defaultSetCount, source, state.unit, !lastEntry?.session.deload),
         burndown: null,
         notes: '',
         skipped: false,
-        targetRepMin,
-        targetRepMax,
+        targetRepMin: tpl?.targetRepMin ?? last?.targetRepMin ?? null,
+        targetRepMax: source.targetRepMax,
+        loadType: source.loadType,
+        perSide: source.perSide,
+        measure: source.measure,
+        increment: source.increment,
       };
 
       return {
@@ -393,16 +563,7 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
       const added: SessionExercise[] = day.exerciseOrder
         .map(eid => day.exercises[eid])
         .filter(ex => !ex.skipped && !currentIds.has(ex.id))
-        .map(ex => ({
-          exerciseId: ex.id,
-          name: ex.name,
-          sets: buildSetsFromLast(findLastPerformed(state.history, ex.id, ex.name)?.exercise, ex.defaultSetCount),
-          burndown: null,
-          notes: '',
-          skipped: false,
-          targetRepMin: ex.targetRepMin,
-          targetRepMax: ex.targetRepMax,
-        }));
+        .map(ex => sessionExerciseFromTemplate(ex, state, action.payload.dayId, 'makeup'));
 
       if (added.length === 0) return state;
       return {
@@ -416,6 +577,11 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
 
     case 'SET_REST_SECONDS':
       return { ...state, restSeconds: action.payload.seconds };
+
+    case 'SET_BAR_WEIGHT': {
+      const { unit, weight } = action.payload;
+      return { ...state, barWeight: { ...state.barWeight, [unit]: weight } };
+    }
 
     case 'DELETE_HISTORY_SESSION': {
       const { sessionId } = action.payload;
@@ -435,6 +601,83 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
         return { ...session, exercises };
       });
       return { ...state, history };
+    }
+
+    case 'LOG_BODYWEIGHT': {
+      const { date, weight } = action.payload;
+      if (!(weight > 0)) return state;
+      const bodyweightLog = upsertBodyweight(state.bodyweightLog, { date, weight });
+      // Today's active session picks up today's entry.
+      const activeSession = state.activeSession && state.activeSession.date === date
+        ? { ...state.activeSession, bodyweight: weight }
+        : state.activeSession;
+      return { ...state, bodyweightLog, activeSession };
+    }
+
+    case 'DELETE_BODYWEIGHT':
+      return { ...state, bodyweightLog: state.bodyweightLog.filter(e => e.date !== action.payload.date) };
+
+    case 'TOGGLE_DELOAD_WEEK': {
+      const { weekStart } = action.payload;
+      const on = !state.deloadWeeks.includes(weekStart);
+      const deloadWeeks = on ? [...state.deloadWeeks, weekStart].sort() : state.deloadWeeks.filter(w => w !== weekStart);
+      const inWeek = (s: WorkoutSession) => toISODate(startOfWeek(parseISO(s.startedAt))) === weekStart;
+      const flag = (s: WorkoutSession) => (inWeek(s) && s.deload !== on ? { ...s, deload: on } : s);
+      return {
+        ...state,
+        deloadWeeks,
+        history: state.history.map(flag),
+        activeSession: state.activeSession ? flag(state.activeSession) : null,
+      };
+    }
+
+    case 'SET_REST_NOTIFICATIONS':
+      return { ...state, restNotifications: action.payload.enabled };
+
+    case 'SAVE_PROGRAM': {
+      const program: Program = {
+        id: generateId(),
+        name: action.payload.name,
+        dayOrder: [...state.dayOrder],
+        days: structuredClone(state.days),
+        savedAt: new Date().toISOString(),
+      };
+      return { ...state, programs: [program, ...state.programs] };
+    }
+
+    case 'LOAD_PROGRAM': {
+      const program = state.programs.find(p => p.id === action.payload.programId);
+      if (!program) return state;
+      const days = structuredClone(program.days);
+      return {
+        ...state,
+        dayOrder: [...program.dayOrder],
+        days,
+        activeDayId: program.dayOrder[0] ?? null,
+      };
+    }
+
+    case 'DELETE_PROGRAM':
+      return { ...state, programs: state.programs.filter(p => p.id !== action.payload.programId) };
+
+    case 'IMPORT_PROGRAM': {
+      const incoming = action.payload.program;
+      // Fresh ids so an imported program never collides with existing days.
+      const dayIdMap = new Map(incoming.dayOrder.map(id => [id, generateId()] as const));
+      const days: Record<string, DayTemplate> = {};
+      for (const oldId of incoming.dayOrder) {
+        const day = incoming.days[oldId];
+        const newId = dayIdMap.get(oldId)!;
+        days[newId] = structuredClone({ ...day, id: newId });
+      }
+      const program: Program = {
+        id: generateId(),
+        name: incoming.name,
+        dayOrder: incoming.dayOrder.map(id => dayIdMap.get(id)!),
+        days,
+        savedAt: new Date().toISOString(),
+      };
+      return { ...state, programs: [program, ...state.programs] };
     }
 
     default:

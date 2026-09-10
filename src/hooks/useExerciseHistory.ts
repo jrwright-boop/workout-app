@@ -1,38 +1,76 @@
 import { useMemo } from 'react';
 import { useWorkout } from './useWorkout';
-import type { ExerciseId, SessionExercise, WorkoutSession } from '../types';
-import { findLastPerformed, wasPerformed } from '../utils/exerciseHistory';
+import type { ExerciseId, ExerciseTypeFields } from '../types';
+import { findAllPerformed, findLastForDay, withType, type HistoryEntry, type HistoryScope, type LastPerformedInfo } from '../utils/exerciseHistory';
+import { computeRecords, type Records } from '../utils/records';
+import { assessProgress, type ProgressAssessment } from '../utils/stall';
+import { buildExerciseLibrary } from '../utils/library';
 
-export interface ExerciseHistoryEntry {
-  session: WorkoutSession;
-  exercise: SessionExercise;
+export type ExerciseHistoryEntry = HistoryEntry;
+
+/**
+ * All performed instances of an exercise, newest first. Matches by id OR
+ * name so the same lift on a different day (or logged as a one-off) counts.
+ * Entries are re-read under `type` (the exercise's current type) when given,
+ * otherwise under the newest entry's type, so old sets follow a type change.
+ */
+export function useExerciseHistory(
+  exerciseId: ExerciseId | null,
+  exerciseName?: string | null,
+  type?: ExerciseTypeFields | null,
+  scope?: HistoryScope
+): ExerciseHistoryEntry[] {
+  const { state } = useWorkout();
+  const dayId = scope?.dayId ?? null;
+  const scheduledOnly = scope?.scheduledOnly ?? false;
+  const excludeDeload = scope?.excludeDeload ?? false;
+  return useMemo(() => {
+    const raw = findAllPerformed(state.history, exerciseId, exerciseName, { dayId, scheduledOnly, excludeDeload });
+    return withType(raw, type ?? raw[0]?.exercise ?? null);
+  }, [state.history, exerciseId, exerciseName, type, dayId, scheduledOnly, excludeDeload]);
 }
 
-export function useExerciseHistory(exerciseId: ExerciseId): ExerciseHistoryEntry[] {
+/**
+ * "Last time" for an exercise as seen from a given day: same-day scheduled
+ * history first, any instance as a fallback, plus a newer off-plan instance
+ * to mention. Pass no dayId to get plain most-recent.
+ */
+export function useLastSession(
+  exerciseId: ExerciseId | null,
+  exerciseName?: string | null,
+  dayId?: string | null
+): LastPerformedInfo {
   const { state } = useWorkout();
-
-  return useMemo(() => {
-    return state.history
-      .map(session => {
-        // Ignore entries where the exercise was skipped or left empty — they
-        // hold no data for charts or "Last:" displays.
-        const exercise = session.exercises.find(e => e.exerciseId === exerciseId && wasPerformed(e));
-        if (!exercise) return null;
-        return { session, exercise };
-      })
-      .filter((e): e is ExerciseHistoryEntry => e !== null);
-  }, [state.history, exerciseId]);
+  return useMemo(
+    () => findLastForDay(state.history, exerciseId, exerciseName, dayId),
+    [state.history, exerciseId, exerciseName, dayId]
+  );
 }
 
-export function useLastSession(exerciseId: ExerciseId, exerciseName?: string): ExerciseHistoryEntry | null {
-  const { state } = useWorkout();
-  const history = useExerciseHistory(exerciseId);
+/** Best-ever numbers for an exercise across all history, under its current type. */
+export function useExerciseRecords(
+  exerciseId: ExerciseId | null,
+  exerciseName: string | null | undefined,
+  type: ExerciseTypeFields | null | undefined,
+  scope?: HistoryScope
+): Records {
+  const history = useExerciseHistory(exerciseId, exerciseName, type, scope);
+  return useMemo(() => computeRecords(history), [history]);
+}
 
-  // Fall back to name-based lookup for exercises added mid-session (which get
-  // a fresh exerciseId and therefore won't match prior template entries).
-  return useMemo(() => {
-    if (history[0]) return history[0];
-    if (!exerciseName) return null;
-    return findLastPerformed(state.history, null, exerciseName);
-  }, [history, exerciseName, state.history]);
+/** Stall / regression assessment from same-day scheduled, non-deload history. */
+export function useProgressAssessment(
+  exerciseId: ExerciseId | null,
+  exerciseName: string | null | undefined,
+  template: (ExerciseTypeFields & { targetRepMin: number | null; targetRepMax: number | null }) | null,
+  dayId: string | null | undefined
+): ProgressAssessment {
+  const { state } = useWorkout();
+  const history = useExerciseHistory(exerciseId, exerciseName, template, { dayId, scheduledOnly: true, excludeDeload: true });
+  return useMemo(() => (template ? assessProgress(history, template, state.unit) : null), [history, template, state.unit]);
+}
+
+export function useExerciseLibrary() {
+  const { state } = useWorkout();
+  return useMemo(() => buildExerciseLibrary(state), [state]);
 }

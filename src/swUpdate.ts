@@ -10,9 +10,13 @@ export function registerServiceWorker(onUpdate: (apply: () => void) => void): vo
   if (!('serviceWorker' in navigator) || registered) return;
   registered = true;
 
+  // On the very first visit the new worker claims the page (clients.claim)
+  // and fires controllerchange too; reloading then is pointless and jarring.
+  // Only reload when an *existing* controller is being replaced.
+  const hadController = !!navigator.serviceWorker.controller;
   let reloading = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (reloading) return;
+    if (!hadController || reloading) return;
     reloading = true;
     window.location.reload();
   });

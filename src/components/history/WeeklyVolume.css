@@ -1,0 +1,71 @@
+.weekly-volume {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--bg);
+  border-radius: 10px;
+}
+
+.weekly-volume-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.weekly-volume-title {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.segmented--small .segmented-btn {
+  padding: 5px 10px;
+  font-size: 0.75rem;
+}
+
+.weekly-volume-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.volume-row {
+  display: grid;
+  grid-template-columns: 84px 1fr 34px;
+  align-items: center;
+  gap: 8px;
+}
+
+.volume-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.volume-track {
+  height: 10px;
+  background: var(--surface);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.volume-bar {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 5px;
+  transition: width 0.2s;
+}
+
+.volume-value {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.weekly-volume-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}

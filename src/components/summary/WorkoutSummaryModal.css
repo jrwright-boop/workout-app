@@ -79,3 +79,23 @@
   font-size: 0.85rem;
   color: var(--text);
 }
+
+.summary-records {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(212, 160, 23, 0.14);
+}
+
+.summary-records-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #e5b52a;
+}
+
+.summary-records-item {
+  font-size: 0.85rem;
+  color: var(--text);
+}

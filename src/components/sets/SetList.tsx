@@ -1,8 +1,14 @@
+import { useMemo, useState } from 'react';
 import { useWorkout } from '../../hooks/useWorkout';
+import { useExerciseRecords } from '../../hooks/useExerciseHistory';
 import type { SessionExercise } from '../../types';
 import { SetRow } from './SetRow';
 import { BurndownSets } from './BurndownSets';
+import { PlateCalculatorModal } from './PlateCalculatorModal';
 import { formatRepRange } from '../../utils/repRange';
+import { primeAudio } from '../../utils/audio';
+import { applyRecord, setRecord } from '../../utils/records';
+import { defaultIncrement, weightLabel } from '../../utils/units';
 import './SetList.css';
 
 interface SetListProps {
@@ -14,18 +20,45 @@ interface SetListProps {
 export function SetList({ exercise, exerciseIndex, onSetCompleted }: SetListProps) {
   const { state, dispatch } = useWorkout();
   const unit = state.unit;
-  const targetRange = formatRepRange(exercise.targetRepMin, exercise.targetRepMax);
+  const targetRange = formatRepRange(exercise.targetRepMin, exercise.targetRepMax, exercise.measure);
+  const records = useExerciseRecords(exercise.exerciseId, exercise.name, exercise);
+  const [showPlates, setShowPlates] = useState(false);
+
+  const weightStep = exercise.increment ?? defaultIncrement(unit);
+  const canCalcPlates = exercise.loadType === 'external' && !exercise.perSide;
+  const plateWeight = exercise.sets.find(s => !s.completed && s.weight != null)?.weight
+    ?? exercise.sets.find(s => s.weight != null)?.weight
+    ?? null;
+
+  // A record is only "beaten" once per kind per exercise: later sets are
+  // compared against the running best including earlier sets this session.
+  const bodyweight = state.activeSession?.bodyweight ?? null;
+  const recordKinds = useMemo(() => {
+    const running = { ...records };
+    return exercise.sets.map(set => {
+      const kind = setRecord(exercise, set, running, bodyweight);
+      if (kind) applyRecord(running, exercise, set, kind, bodyweight);
+      return kind;
+    });
+  }, [exercise, records, bodyweight]);
 
   return (
     <div className="set-list">
+      {(targetRange || canCalcPlates) && (
+        <div className="set-list-target-row">
+          {canCalcPlates && (
+            <button type="button" className="plates-btn" onClick={() => setShowPlates(true)}>
+              Plates
+            </button>
+          )}
+          {targetRange && <span className="set-list-target">Target {targetRange}</span>}
+        </div>
+      )}
       <div className="set-list-header">
         <span className="set-list-label">Set</span>
-        <span className="set-list-label">Weight</span>
+        <span className="set-list-label">{weightLabel(exercise.loadType, exercise.perSide)}</span>
         <span></span>
-        <span className="set-list-label">Reps</span>
-        {targetRange && (
-          <span className="set-list-target">Target {targetRange}</span>
-        )}
+        <span className="set-list-label">{exercise.measure === 'seconds' ? 'Time' : 'Reps'}</span>
       </div>
 
       {exercise.sets.map((set, setIndex) => (
@@ -34,7 +67,10 @@ export function SetList({ exercise, exerciseIndex, onSetCompleted }: SetListProp
           index={setIndex}
           set={set}
           unit={unit}
+          measure={exercise.measure}
+          weightStep={weightStep}
           targetRepMax={exercise.targetRepMax}
+          record={recordKinds[setIndex]}
           onUpdateWeight={value => dispatch({
             type: 'UPDATE_SET',
             payload: { exerciseIndex, setIndex, field: 'weight', value },
@@ -45,6 +81,8 @@ export function SetList({ exercise, exerciseIndex, onSetCompleted }: SetListProp
           })}
           onToggleComplete={() => {
             const wasCompleted = set.completed;
+            // This tap is the user gesture that lets the timer beep later (iOS).
+            if (!wasCompleted) primeAudio();
             dispatch({
               type: 'TOGGLE_SET_COMPLETE',
               payload: { exerciseIndex, setIndex },
@@ -53,6 +91,7 @@ export function SetList({ exercise, exerciseIndex, onSetCompleted }: SetListProp
               onSetCompleted();
             }
           }}
+          onToggleWarmup={() => dispatch({ type: 'TOGGLE_SET_WARMUP', payload: { exerciseIndex, setIndex } })}
           onRemove={() => dispatch({
             type: 'REMOVE_SET',
             payload: { exerciseIndex, setIndex },
@@ -83,6 +122,7 @@ export function SetList({ exercise, exerciseIndex, onSetCompleted }: SetListProp
               <div className="stepper stepper--small">
                 <button
                   className="stepper-btn stepper-btn--small"
+                  aria-label="Fewer drop sets"
                   onClick={() => dispatch({
                     type: 'SET_SESSION_DROP_COUNT',
                     payload: { exerciseIndex, count: Math.max(1, exercise.burndown!.drops.length - 1) },
@@ -93,6 +133,7 @@ export function SetList({ exercise, exerciseIndex, onSetCompleted }: SetListProp
                 <span className="stepper-value stepper-value--small">{exercise.burndown.drops.length}</span>
                 <button
                   className="stepper-btn stepper-btn--small"
+                  aria-label="More drop sets"
                   onClick={() => dispatch({
                     type: 'SET_SESSION_DROP_COUNT',
                     payload: { exerciseIndex, count: exercise.burndown!.drops.length + 1 },
@@ -115,6 +156,13 @@ export function SetList({ exercise, exerciseIndex, onSetCompleted }: SetListProp
             unit={unit}
           />
         </div>
+      )}
+
+      {showPlates && (
+        <PlateCalculatorModal
+          initialWeight={plateWeight}
+          onClose={() => setShowPlates(false)}
+        />
       )}
     </div>
   );

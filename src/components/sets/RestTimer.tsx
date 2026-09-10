@@ -1,21 +1,38 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useId } from 'react';
+import { playBeep } from '../../utils/audio';
+import { cancelRestNotification, scheduleRestNotification, showRestNotification } from '../../utils/notifications';
 import './RestTimer.css';
 
 interface RestTimerProps {
   onDismiss: () => void;
   defaultSeconds?: number;
+  /** Ask the service worker to notify at the deadline (Settings toggle). */
+  notify?: boolean;
 }
 
-export function RestTimer({ onDismiss, defaultSeconds = 90 }: RestTimerProps) {
+export function RestTimer({ onDismiss, defaultSeconds = 90, notify = false }: RestTimerProps) {
   // Count down against a wall-clock deadline instead of interval ticks, so
   // the timer stays correct after the phone is locked or the tab suspended.
   const endRef = useRef(0);
   const [remaining, setRemaining] = useState(defaultSeconds);
   const [total, setTotal] = useState(defaultSeconds);
   const hasAlertedRef = useRef(false);
+  const notifyIdRef = useRef(`rest-${useId()}`);
+
+  // Keep the worker's scheduled notification in step with the deadline.
+  const syncNotification = () => {
+    if (!notify) return;
+    scheduleRestNotification(notifyIdRef.current, endRef.current);
+  };
 
   useEffect(() => {
     endRef.current = Date.now() + defaultSeconds * 1000;
+    if (notify) scheduleRestNotification(notifyIdRef.current, endRef.current);
+    const id = notifyIdRef.current;
+    return () => { if (notify) cancelRestNotification(id); };
+  }, [defaultSeconds, notify]);
+
+  useEffect(() => {
     const tick = () => {
       setRemaining(Math.max(0, Math.round((endRef.current - Date.now()) / 1000)));
     };
@@ -34,22 +51,15 @@ export function RestTimer({ onDismiss, defaultSeconds = 90 }: RestTimerProps) {
       if (navigator.vibrate) {
         navigator.vibrate([200, 100, 200]);
       }
-      // Beep via Web Audio API
-      try {
-        const ctx = new AudioContext();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.frequency.value = 880;
-        gain.gain.value = 0.3;
-        osc.start();
-        osc.stop(ctx.currentTime + 0.2);
-      } catch {
-        // Audio not available
+      playBeep();
+      if (notify) {
+        // The page is alive, so it owns the notification: cancel the
+        // worker's copy and show one only if the app isn't on screen.
+        cancelRestNotification(notifyIdRef.current);
+        if (document.visibilityState !== 'visible') showRestNotification();
       }
     }
-  }, [remaining]);
+  }, [remaining, notify]);
 
   const adjust = (delta: number) => {
     endRef.current = Math.max(Date.now(), endRef.current + delta * 1000);
@@ -58,6 +68,7 @@ export function RestTimer({ onDismiss, defaultSeconds = 90 }: RestTimerProps) {
     if (hasAlertedRef.current && delta > 0) {
       hasAlertedRef.current = false;
     }
+    syncNotification();
   };
 
   const progress = total > 0 ? remaining / total : 0;
@@ -90,8 +101,8 @@ export function RestTimer({ onDismiss, defaultSeconds = 90 }: RestTimerProps) {
         </div>
         <span className="rest-timer-label">Rest</span>
         <div className="rest-timer-buttons">
-          <button className="rest-timer-btn" onClick={() => adjust(-15)}>-15s</button>
-          <button className="rest-timer-btn" onClick={() => adjust(15)}>+15s</button>
+          <button className="rest-timer-btn" onClick={() => adjust(-15)} aria-label="Subtract 15 seconds">-15s</button>
+          <button className="rest-timer-btn" onClick={() => adjust(15)} aria-label="Add 15 seconds">+15s</button>
         </div>
         <button className="rest-timer-dismiss" onClick={onDismiss}>Dismiss</button>
       </div>

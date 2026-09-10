@@ -14,3 +14,19 @@
   color: var(--text-secondary);
   font-weight: 500;
 }
+
+.last-session-badge {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.last-session-line {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.last-session-line--newer {
+  opacity: 0.75;
+}

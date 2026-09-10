@@ -1,4 +1,4 @@
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, type Plugin } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -24,4 +24,10 @@ function swVersionPlugin(): Plugin {
 export default defineConfig({
   plugins: [react(), swVersionPlugin()],
   base: '/workout-app/',
+  test: {
+    // Pure-function tests run in node; component tests opt into jsdom with
+    // a `// @vitest-environment jsdom` comment at the top of the file.
+    environment: 'node',
+    include: ['src/**/*.test.{ts,tsx}'],
+  },
 })
