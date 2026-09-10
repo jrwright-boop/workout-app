@@ -1,4 +1,4 @@
-import type { AppState, ExerciseId, ExerciseTypeFields, SessionExercise } from '../types';
+import type { AppState, ExerciseId, ExerciseTypeFields, MuscleGroup, SessionExercise } from '../types';
 import { DEFAULT_TYPE_FIELDS } from '../types';
 import { exerciseKey } from './exerciseKey';
 import { wasPerformed } from './exerciseHistory';
@@ -10,6 +10,8 @@ export interface LibraryEntry extends ExerciseTypeFields {
   defaultSetCount: number;
   targetRepMin: number | null;
   targetRepMax: number | null;
+  cues: string;
+  muscles: MuscleGroup[] | null;
   /** Days whose plan includes this exercise (by id or name). */
   dayNames: string[];
   dayIds: string[];
@@ -43,6 +45,8 @@ export function buildExerciseLibrary(state: AppState): LibraryEntry[] {
         defaultSetCount: ex.defaultSetCount,
         targetRepMin: ex.targetRepMin,
         targetRepMax: ex.targetRepMax,
+        cues: ex.cues,
+        muscles: ex.muscles,
         loadType: ex.loadType,
         perSide: ex.perSide,
         measure: ex.measure,
@@ -74,6 +78,8 @@ export function buildExerciseLibrary(state: AppState): LibraryEntry[] {
         defaultSetCount: ex.sets.length,
         targetRepMin: ex.targetRepMin,
         targetRepMax: ex.targetRepMax,
+        cues: '',
+        muscles: null,
         loadType: ex.loadType ?? DEFAULT_TYPE_FIELDS.loadType,
         perSide: ex.perSide ?? DEFAULT_TYPE_FIELDS.perSide,
         measure: ex.measure ?? DEFAULT_TYPE_FIELDS.measure,

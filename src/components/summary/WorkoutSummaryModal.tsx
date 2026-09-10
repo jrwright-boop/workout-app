@@ -43,8 +43,8 @@ export function WorkoutSummaryModal({ session, onClose }: WorkoutSummaryModalPro
 
     // Personal records: compare each exercise against everything before today.
     const records = active.flatMap(ex => {
-      const prior = computeRecords(withType(findAllPerformed(priorHistory, ex.exerciseId, ex.name), ex).map(h => h.exercise));
-      const kinds = exerciseRecordsBeaten(ex, prior);
+      const prior = computeRecords(withType(findAllPerformed(priorHistory, ex.exerciseId, ex.name), ex));
+      const kinds = exerciseRecordsBeaten(ex, prior, session.bodyweight);
       return kinds.map(k => `${ex.name}: ${recordLabel(k).toLowerCase()}`);
     });
 
@@ -60,8 +60,8 @@ export function WorkoutSummaryModal({ session, onClose }: WorkoutSummaryModalPro
 
         <div className="summary-stats">
           <div className="summary-stat">
-            <span className="summary-stat-value">{formatElapsed(summary.durationSec)}</span>
-            <span className="summary-stat-label">Duration</span>
+            <span className="summary-stat-value">{session.backdated ? '—' : formatElapsed(summary.durationSec)}</span>
+            <span className="summary-stat-label">{session.backdated ? 'Logged later' : 'Duration'}</span>
           </div>
           <div className="summary-stat">
             <span className="summary-stat-value">{summary.completedSets}/{summary.totalSets}</span>

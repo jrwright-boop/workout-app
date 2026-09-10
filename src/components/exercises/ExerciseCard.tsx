@@ -1,7 +1,7 @@
 import { memo, useState } from 'react';
 import type { ExerciseTemplate, DayId } from '../../types';
 import { useWorkout } from '../../hooks/useWorkout';
-import { useLastSession } from '../../hooks/useExerciseHistory';
+import { useLastSession, useProgressAssessment } from '../../hooks/useExerciseHistory';
 import { LastSessionBadge } from '../history/LastSessionBadge';
 import { HistoryView } from '../history/HistoryView';
 import { formatRepRange } from '../../utils/repRange';
@@ -29,8 +29,12 @@ export const ExerciseCard = memo(function ExerciseCard({
   onEdit,
   dragHandleProps,
 }: ExerciseCardProps) {
-  const { dispatch } = useWorkout();
+  const { state, dispatch, dispatchUndoable } = useWorkout();
   const lastInfo = useLastSession(exercise.id, exercise.name, dayId);
+  const progress = useProgressAssessment(exercise.id, exercise.name, exercise, dayId);
+  const partner = exercise.supersetGroup
+    ? Object.values(state.days[dayId].exercises).find(e => e.id !== exercise.id && e.supersetGroup === exercise.supersetGroup)
+    : null;
   const [showHistory, setShowHistory] = useState(false);
   const targetRange = formatRepRange(exercise.targetRepMin, exercise.targetRepMax, exercise.measure);
   const badge = typeBadge(exercise);
@@ -66,11 +70,10 @@ export const ExerciseCard = memo(function ExerciseCard({
             <button
               className="delete-btn"
               aria-label={`Delete ${exercise.name}`}
-              onClick={() => {
-                if (confirm(`Remove "${exercise.name}" from this day? History is kept.`)) {
-                  dispatch({ type: 'DELETE_EXERCISE', payload: { dayId, exerciseId: exercise.id } });
-                }
-              }}
+              onClick={() => dispatchUndoable(
+                { type: 'DELETE_EXERCISE', payload: { dayId, exerciseId: exercise.id } },
+                `Removed ${exercise.name}`
+              )}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <polyline points="3 6 5 6 21 6" /><path d="M19 6l-2 14H7L5 6" /><path d="M10 11v6" /><path d="M14 11v6" />
@@ -78,8 +81,16 @@ export const ExerciseCard = memo(function ExerciseCard({
             </button>
           </div>
         </div>
+        {partner && <span className="superset-badge">⛓ Superset with {partner.name}</span>}
         {lastInfo.last && !exercise.skipped && (
           <LastSessionBadge info={lastInfo} />
+        )}
+        {progress && !exercise.skipped && (
+          <span className="progress-note">
+            {progress.kind === 'stalled'
+              ? `Stuck at ${progress.weight} ${state.unit} for ${progress.sessions} sessions. Try more reps, a smaller step, or a deload.`
+              : `Missed the bottom of the range ${progress.misses} sessions running.${progress.suggestedWeight != null ? ` Consider ${progress.suggestedWeight} ${state.unit}${exercise.loadType === 'assisted' ? ' assistance' : ''}.` : ''}`}
+          </span>
         )}
       </div>
       <HistoryView

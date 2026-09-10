@@ -43,7 +43,7 @@ function SortableDayItem({ dayId, name, onRename, onDelete }: {
 }
 
 export function DayManager({ open, onClose }: DayManagerProps) {
-  const { state, dispatch } = useWorkout();
+  const { state, dispatch, dispatchUndoable } = useWorkout();
   const [newDayName, setNewDayName] = useState('');
 
   const handleAdd = () => {
@@ -63,8 +63,8 @@ export function DayManager({ open, onClose }: DayManagerProps) {
 
   const handleDelete = (dayId: DayId) => {
     const day = state.days[dayId];
-    if (confirm(`Delete "${day.name}" and all its exercises?`)) {
-      dispatch({ type: 'DELETE_DAY', payload: { dayId } });
+    if (confirm(`Delete "${day.name}" and all its exercises? History is kept.`)) {
+      dispatchUndoable({ type: 'DELETE_DAY', payload: { dayId } }, `Deleted ${day.name}`);
     }
   };
 

@@ -22,12 +22,15 @@ export interface HistoryScope {
   dayId?: string | null;
   /** Only instances that were on the plan (not make-ups). */
   scheduledOnly?: boolean;
+  /** Skip deload-week sessions (pre-fill, progression, and stall checks do). */
+  excludeDeload?: boolean;
 }
 
 function inScope(session: WorkoutSession, exercise: SessionExercise, scope?: HistoryScope): boolean {
   if (!scope) return true;
   if (scope.dayId && session.dayId !== scope.dayId) return false;
   if (scope.scheduledOnly && exercise.origin === 'makeup') return false;
+  if (scope.excludeDeload && session.deload) return false;
   return true;
 }
 
@@ -86,11 +89,14 @@ export function findLastForDay(
   name: string | null | undefined,
   dayId: string | null | undefined
 ): LastPerformedInfo {
-  const any = findLastPerformed(history, exerciseId, name);
+  // Deload sessions never drive numbers, but are still worth mentioning.
+  const any = findLastPerformed(history, exerciseId, name, { excludeDeload: true })
+    ?? findLastPerformed(history, exerciseId, name);
   if (!dayId) return { last: any, sameDay: false, newer: null };
-  const scoped = findLastPerformed(history, exerciseId, name, { dayId, scheduledOnly: true });
+  const scoped = findLastPerformed(history, exerciseId, name, { dayId, scheduledOnly: true, excludeDeload: true });
   if (!scoped) return { last: any, sameDay: false, newer: null };
-  const newer = any && any.session.id !== scoped.session.id ? any : null;
+  const latest = findLastPerformed(history, exerciseId, name);
+  const newer = latest && latest.session.id !== scoped.session.id ? latest : null;
   return { last: scoped, sameDay: true, newer };
 }
 

@@ -4,13 +4,13 @@ import { DEFAULT_TYPE_FIELDS, type ExerciseOrigin, type SessionExercise, type Wo
 
 function ex(exerciseId: string, name: string, weight: number, origin: ExerciseOrigin = 'scheduled'): SessionExercise {
   return {
-    exerciseId, name, origin, notes: '', skipped: false, burndown: null, targetRepMin: null, targetRepMax: null, ...DEFAULT_TYPE_FIELDS,
+    exerciseId, name, origin, supersetGroup: null, notes: '', skipped: false, burndown: null, targetRepMin: null, targetRepMax: null, ...DEFAULT_TYPE_FIELDS,
     sets: [{ weight, reps: 10, completed: true, repsFromLastSession: null, warmup: false, prefilledWeight: null, suggested: false }],
   };
 }
 
 function session(id: string, dayId: string, date: string, exercises: SessionExercise[]): WorkoutSession {
-  return { id, dayId, dayName: dayId === 'push' ? 'Push' : dayId === 'pull' ? 'Pull' : 'Upper', date, startedAt: `${date}T17:00:00Z`, completedAt: null, exercises };
+  return { id, dayId, dayName: dayId === 'push' ? 'Push' : dayId === 'pull' ? 'Pull' : 'Upper', date, startedAt: `${date}T17:00:00Z`, completedAt: null, exercises, bodyweight: null, deload: false, backdated: false };
 }
 
 // Newest first, like state.history.

@@ -7,7 +7,7 @@ import { BurndownSets } from './BurndownSets';
 import { PlateCalculatorModal } from './PlateCalculatorModal';
 import { formatRepRange } from '../../utils/repRange';
 import { primeAudio } from '../../utils/audio';
-import { setRecord } from '../../utils/records';
+import { applyRecord, setRecord } from '../../utils/records';
 import { defaultIncrement, weightLabel } from '../../utils/units';
 import './SetList.css';
 
@@ -32,17 +32,15 @@ export function SetList({ exercise, exerciseIndex, onSetCompleted }: SetListProp
 
   // A record is only "beaten" once per kind per exercise: later sets are
   // compared against the running best including earlier sets this session.
+  const bodyweight = state.activeSession?.bodyweight ?? null;
   const recordKinds = useMemo(() => {
     const running = { ...records };
     return exercise.sets.map(set => {
-      const kind = setRecord(exercise, set, running);
-      if (kind === 'weight') running.bestWeight = set.weight;
-      if (kind === 'assistance') running.minAssistance = set.weight;
-      if (kind === 'reps') running.bestReps = set.reps;
-      if (kind === 'seconds') running.bestSeconds = set.reps;
+      const kind = setRecord(exercise, set, running, bodyweight);
+      if (kind) applyRecord(running, exercise, set, kind, bodyweight);
       return kind;
     });
-  }, [exercise, records]);
+  }, [exercise, records, bodyweight]);
 
   return (
     <div className="set-list">

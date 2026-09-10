@@ -177,3 +177,42 @@
   background: var(--accent);
   color: #fff;
 }
+
+.form-textarea {
+  height: auto;
+  padding: 10px 12px;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.4;
+}
+
+.muscle-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.muscle-chip {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-secondary);
+}
+
+.muscle-chip--primary {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(74, 158, 255, 0.12);
+}
+
+.muscle-chip--edit,
+.muscle-chip--toggle {
+  cursor: pointer;
+}
+
+.muscle-chip--edit {
+  border-style: dashed;
+}

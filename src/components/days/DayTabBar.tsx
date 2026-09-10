@@ -18,7 +18,7 @@ export function DayTabBar() {
             // History is newest-first, so the first match is the latest.
             const last = state.history.find(s => s.dayId === dayId);
             const sublabel = last
-              ? `${formatRelativeDay(last.startedAt)}${last.completedAt ? ` · ${formatDuration(last.startedAt, last.completedAt)}` : ''}`
+              ? `${formatRelativeDay(last.startedAt)}${last.completedAt && !last.backdated ? ` · ${formatDuration(last.startedAt, last.completedAt)}` : ''}`
               : null;
             return (
               <DayTab

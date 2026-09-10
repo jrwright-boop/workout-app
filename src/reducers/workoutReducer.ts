@@ -3,7 +3,9 @@ import type {
   ExerciseTemplate, ExerciseTypeFields, Unit, Program, DayTemplate,
 } from '../types';
 import { generateId } from '../utils/id';
-import { toISODate } from '../utils/date';
+import { parseISO, toISODate } from '../utils/date';
+import { startOfWeek } from '../utils/calendar';
+import { bodyweightOn, upsertBodyweight } from '../utils/bodyweight';
 import { findLastForDay, findLastPerformed } from '../utils/exerciseHistory';
 import { hitTopOfRange } from '../utils/repRange';
 import { workingSets } from '../utils/metrics';
@@ -21,10 +23,12 @@ function buildSetsFromLast(
   lastEx: SessionExercise | undefined,
   count: number,
   tpl: PrefillSource,
-  unit: Unit
+  unit: Unit,
+  /** False when the source session was a deload: its numbers pre-fill but never trigger a step up. */
+  allowSuggestion = true
 ): SetEntry[] {
   const lastWorking = lastEx ? workingSets(lastEx) : [];
-  const progress = !!lastEx && tpl.targetRepMax != null && hitTopOfRange(lastEx);
+  const progress = allowSuggestion && !!lastEx && tpl.targetRepMax != null && hitTopOfRange(lastEx);
   const inc = tpl.increment ?? defaultIncrement(unit);
 
   return Array.from({ length: count }, (_, i) => {
@@ -62,16 +66,18 @@ function sessionExerciseFromTemplate(
   ex: ExerciseTemplate,
   state: AppState,
   dayId: string,
-  origin: SessionExercise['origin']
+  origin: SessionExercise['origin'],
+  history: WorkoutSession[] = state.history
 ): SessionExercise {
-  const lastEx = origin === 'scheduled'
-    ? findLastForDay(state.history, ex.id, ex.name, dayId).last?.exercise
-    : findLastPerformed(state.history, ex.id, ex.name)?.exercise;
+  const last = origin === 'scheduled'
+    ? findLastForDay(history, ex.id, ex.name, dayId).last
+    : findLastPerformed(history, ex.id, ex.name, { excludeDeload: true }) ?? findLastPerformed(history, ex.id, ex.name);
   return {
     exerciseId: ex.id,
     name: ex.name,
     origin,
-    sets: buildSetsFromLast(lastEx, ex.defaultSetCount, ex, state.unit),
+    supersetGroup: origin === 'scheduled' ? ex.supersetGroup : null,
+    sets: buildSetsFromLast(last?.exercise, ex.defaultSetCount, ex, state.unit, !last?.session.deload),
     burndown: null,
     notes: '',
     skipped: false,
@@ -111,6 +117,7 @@ function convertSets(sets: SetEntry[], from: Unit, to: Unit): SetEntry[] {
 function convertSession(session: WorkoutSession, from: Unit, to: Unit): WorkoutSession {
   return {
     ...session,
+    bodyweight: session.bodyweight == null ? null : convertWeight(session.bodyweight, from, to),
     exercises: session.exercises.map(ex => ({
       ...ex,
       increment: ex.increment == null ? null : convertWeight(ex.increment, from, to),
@@ -183,7 +190,7 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
       return { ...state, activeDayId: action.payload.dayId };
 
     case 'ADD_EXERCISE': {
-      const { dayId, id, name, defaultSetCount, targetRepMin, targetRepMax, loadType, perSide, measure, increment } = action.payload;
+      const { dayId, id, name, defaultSetCount, targetRepMin, targetRepMax, loadType, perSide, measure, increment, cues, muscles } = action.payload;
       const day = state.days[dayId];
       if (!day) return state;
       const exerciseId = id ?? generateId();
@@ -200,6 +207,7 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
               [exerciseId]: {
                 id: exerciseId, name, defaultSetCount, skipped: false,
                 targetRepMin, targetRepMax, loadType, perSide, measure, increment,
+                cues, muscles, supersetGroup: null,
               },
             },
           },
@@ -208,7 +216,7 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
     }
 
     case 'EDIT_EXERCISE': {
-      const { dayId, exerciseId, name, defaultSetCount, targetRepMin, targetRepMax, loadType, perSide, measure, increment } = action.payload;
+      const { dayId, exerciseId, name, defaultSetCount, targetRepMin, targetRepMax, loadType, perSide, measure, increment, cues, muscles } = action.payload;
       // Identity-level fields (name, type) belong to the exercise and follow
       // it to every day that includes it; sets and target range stay per day,
       // since a heavy day and a light day can legitimately differ.
@@ -219,7 +227,7 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
         const perDay = id === dayId ? { defaultSetCount, targetRepMin, targetRepMax } : {};
         days[id] = {
           ...day,
-          exercises: { ...day.exercises, [exerciseId]: { ...ex, name, loadType, perSide, measure, increment, ...perDay } },
+          exercises: { ...day.exercises, [exerciseId]: { ...ex, name, loadType, perSide, measure, increment, cues, muscles, ...perDay } },
         };
       }
       return { ...state, days };
@@ -255,10 +263,39 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
           [toDayId]: {
             ...target,
             exerciseOrder: [...target.exerciseOrder, exerciseId],
-            exercises: { ...target.exercises, [exerciseId]: { ...source, skipped: false } },
+            exercises: { ...target.exercises, [exerciseId]: { ...source, skipped: false, supersetGroup: null } },
           },
         },
       };
+    }
+
+    case 'SET_SUPERSET': {
+      // Link an exercise with another on the same day (they share a group id)
+      // or unlink it (withExerciseId null). Groups are pairs or longer chains;
+      // linking to an already-grouped exercise joins that group.
+      const { dayId, exerciseId, withExerciseId } = action.payload;
+      const day = state.days[dayId];
+      const ex = day?.exercises[exerciseId];
+      if (!ex) return state;
+      const exercises = { ...day.exercises };
+      if (!withExerciseId) {
+        exercises[exerciseId] = { ...ex, supersetGroup: null };
+        // A group of one is no group.
+        const remaining = Object.values(exercises).filter(e => e.supersetGroup && e.supersetGroup === ex.supersetGroup);
+        if (remaining.length === 1) exercises[remaining[0].id] = { ...remaining[0], supersetGroup: null };
+      } else {
+        const partner = day.exercises[withExerciseId];
+        if (!partner) return state;
+        const group = partner.supersetGroup ?? ex.supersetGroup ?? generateId();
+        exercises[exerciseId] = { ...ex, supersetGroup: group };
+        exercises[withExerciseId] = { ...partner, supersetGroup: group };
+        // Keep partners adjacent so the session shows them together.
+        const order = day.exerciseOrder.filter(id => id !== exerciseId);
+        const at = order.indexOf(withExerciseId);
+        order.splice(at + 1, 0, exerciseId);
+        return { ...state, days: { ...state.days, [dayId]: { ...day, exercises, exerciseOrder: order } } };
+      }
+      return { ...state, days: { ...state.days, [dayId]: { ...day, exercises } } };
     }
 
     case 'REORDER_EXERCISES': {
@@ -289,23 +326,32 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
     }
 
     case 'START_SESSION': {
-      const { dayId } = action.payload;
+      const { dayId, backdate } = action.payload;
       const day = state.days[dayId];
-      const now = new Date().toISOString();
+      // A backdated session starts at local noon on that day and pre-fills
+      // only from history that came before it.
+      const start = backdate ? new Date(parseISO(backdate).getTime() + 12 * 3600 * 1000) : new Date();
+      const startedAt = start.toISOString();
+      const date = toISODate(start);
+      const history = backdate ? state.history.filter(h => h.startedAt < startedAt) : state.history;
+      const weekKey = toISODate(startOfWeek(start));
 
       const exercises: SessionExercise[] = day.exerciseOrder
         .map(eid => day.exercises[eid])
         .filter(ex => !ex.skipped)
-        .map(ex => sessionExerciseFromTemplate(ex, state, dayId, 'scheduled'));
+        .map(ex => sessionExerciseFromTemplate(ex, state, dayId, 'scheduled', history));
 
       const session: WorkoutSession = {
         id: generateId(),
         dayId,
         dayName: day.name,
-        date: toISODate(),
-        startedAt: now,
+        date,
+        startedAt,
         completedAt: null,
         exercises,
+        bodyweight: bodyweightOn(state.bodyweightLog, date),
+        deload: state.deloadWeeks.includes(weekKey),
+        backdated: !!backdate,
       };
 
       return { ...state, activeSession: session };
@@ -315,12 +361,17 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
       if (!state.activeSession) return state;
       const completed: WorkoutSession = {
         ...state.activeSession,
-        completedAt: new Date().toISOString(),
+        // A backdated session has no real duration; mark it done at its start.
+        completedAt: state.activeSession.backdated ? state.activeSession.startedAt : new Date().toISOString(),
       };
+      // History is newest-first; a backdated session slots into place.
+      const at = state.history.findIndex(h => h.startedAt <= completed.startedAt);
+      const history = [...state.history];
+      history.splice(at === -1 ? history.length : at, 0, completed);
       return {
         ...state,
         activeSession: null,
-        history: [completed, ...state.history],
+        history,
       };
     }
 
@@ -443,6 +494,7 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
         history: state.history.map(s => convertSession(s, from, unit)),
         activeSession: state.activeSession ? convertSession(state.activeSession, from, unit) : null,
         programs: state.programs.map(p => ({ ...p, days: convertDays(p.days, from, unit) })),
+        bodyweightLog: state.bodyweightLog.map(e => ({ ...e, weight: convertWeight(e.weight, from, unit) })),
       };
     }
 
@@ -461,7 +513,9 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
       const { exerciseId, name, defaultSetCount } = action.payload;
 
       // Pre-fill from the last time this exercise was actually performed.
-      const last = findLastPerformed(state.history, exerciseId, name)?.exercise;
+      const lastEntry = findLastPerformed(state.history, exerciseId, name, { excludeDeload: true })
+        ?? findLastPerformed(state.history, exerciseId, name);
+      const last = lastEntry?.exercise;
 
       // Inherit type and target range from the matching day template, if any;
       // otherwise from the last logged instance.
@@ -478,7 +532,8 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
         exerciseId: exerciseId ?? last?.exerciseId ?? generateId(),
         name,
         origin: 'makeup',
-        sets: buildSetsFromLast(last, defaultSetCount, source, state.unit),
+        supersetGroup: null,
+        sets: buildSetsFromLast(last, defaultSetCount, source, state.unit, !lastEntry?.session.deload),
         burndown: null,
         notes: '',
         skipped: false,
@@ -547,6 +602,37 @@ export function workoutReducer(state: AppState, action: WorkoutAction): AppState
       });
       return { ...state, history };
     }
+
+    case 'LOG_BODYWEIGHT': {
+      const { date, weight } = action.payload;
+      if (!(weight > 0)) return state;
+      const bodyweightLog = upsertBodyweight(state.bodyweightLog, { date, weight });
+      // Today's active session picks up today's entry.
+      const activeSession = state.activeSession && state.activeSession.date === date
+        ? { ...state.activeSession, bodyweight: weight }
+        : state.activeSession;
+      return { ...state, bodyweightLog, activeSession };
+    }
+
+    case 'DELETE_BODYWEIGHT':
+      return { ...state, bodyweightLog: state.bodyweightLog.filter(e => e.date !== action.payload.date) };
+
+    case 'TOGGLE_DELOAD_WEEK': {
+      const { weekStart } = action.payload;
+      const on = !state.deloadWeeks.includes(weekStart);
+      const deloadWeeks = on ? [...state.deloadWeeks, weekStart].sort() : state.deloadWeeks.filter(w => w !== weekStart);
+      const inWeek = (s: WorkoutSession) => toISODate(startOfWeek(parseISO(s.startedAt))) === weekStart;
+      const flag = (s: WorkoutSession) => (inWeek(s) && s.deload !== on ? { ...s, deload: on } : s);
+      return {
+        ...state,
+        deloadWeeks,
+        history: state.history.map(flag),
+        activeSession: state.activeSession ? flag(state.activeSession) : null,
+      };
+    }
+
+    case 'SET_REST_NOTIFICATIONS':
+      return { ...state, restNotifications: action.payload.enabled };
 
     case 'SAVE_PROGRAM': {
       const program: Program = {

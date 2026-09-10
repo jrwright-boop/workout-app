@@ -4,7 +4,7 @@ import { formatDuration, formatRelativeDay } from './date';
 import type { WorkoutSession } from '../types';
 
 function session(startedAt: string): WorkoutSession {
-  return { id: startedAt, dayId: 'd', dayName: 'Push', date: startedAt.slice(0, 10), startedAt, completedAt: null, exercises: [] };
+  return { id: startedAt, dayId: 'd', dayName: 'Push', date: startedAt.slice(0, 10), startedAt, completedAt: null, exercises: [], bodyweight: null, deload: false, backdated: false };
 }
 
 // Wednesday 2026-09-09 local noon.

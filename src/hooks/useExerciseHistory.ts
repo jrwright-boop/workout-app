@@ -3,6 +3,7 @@ import { useWorkout } from './useWorkout';
 import type { ExerciseId, ExerciseTypeFields } from '../types';
 import { findAllPerformed, findLastForDay, withType, type HistoryEntry, type HistoryScope, type LastPerformedInfo } from '../utils/exerciseHistory';
 import { computeRecords, type Records } from '../utils/records';
+import { assessProgress, type ProgressAssessment } from '../utils/stall';
 import { buildExerciseLibrary } from '../utils/library';
 
 export type ExerciseHistoryEntry = HistoryEntry;
@@ -22,10 +23,11 @@ export function useExerciseHistory(
   const { state } = useWorkout();
   const dayId = scope?.dayId ?? null;
   const scheduledOnly = scope?.scheduledOnly ?? false;
+  const excludeDeload = scope?.excludeDeload ?? false;
   return useMemo(() => {
-    const raw = findAllPerformed(state.history, exerciseId, exerciseName, { dayId, scheduledOnly });
+    const raw = findAllPerformed(state.history, exerciseId, exerciseName, { dayId, scheduledOnly, excludeDeload });
     return withType(raw, type ?? raw[0]?.exercise ?? null);
-  }, [state.history, exerciseId, exerciseName, type, dayId, scheduledOnly]);
+  }, [state.history, exerciseId, exerciseName, type, dayId, scheduledOnly, excludeDeload]);
 }
 
 /**
@@ -53,7 +55,19 @@ export function useExerciseRecords(
   scope?: HistoryScope
 ): Records {
   const history = useExerciseHistory(exerciseId, exerciseName, type, scope);
-  return useMemo(() => computeRecords(history.map(h => h.exercise)), [history]);
+  return useMemo(() => computeRecords(history), [history]);
+}
+
+/** Stall / regression assessment from same-day scheduled, non-deload history. */
+export function useProgressAssessment(
+  exerciseId: ExerciseId | null,
+  exerciseName: string | null | undefined,
+  template: (ExerciseTypeFields & { targetRepMin: number | null; targetRepMax: number | null }) | null,
+  dayId: string | null | undefined
+): ProgressAssessment {
+  const { state } = useWorkout();
+  const history = useExerciseHistory(exerciseId, exerciseName, template, { dayId, scheduledOnly: true, excludeDeload: true });
+  return useMemo(() => (template ? assessProgress(history, template, state.unit) : null), [history, template, state.unit]);
 }
 
 export function useExerciseLibrary() {

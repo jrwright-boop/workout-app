@@ -1,5 +1,6 @@
 import type { SessionExercise, SetEntry } from '../types';
 import { est1RM, exerciseMetrics, setLoad } from './metrics';
+import type { HistoryEntry } from './exerciseHistory';
 
 export interface Records {
   bestWeight: number | null;
@@ -18,11 +19,11 @@ export const EMPTY_RECORDS: Records = {
 const max = (a: number | null, b: number | null) => (a == null ? b : b == null ? a : Math.max(a, b));
 const min = (a: number | null, b: number | null) => (a == null ? b : b == null ? a : Math.min(a, b));
 
-/** Best-ever numbers across a list of performed instances of one exercise. */
-export function computeRecords(entries: SessionExercise[]): Records {
+/** Best-ever numbers across performed instances of one exercise. */
+export function computeRecords(entries: HistoryEntry[]): Records {
   const r: Records = { ...EMPTY_RECORDS };
-  for (const ex of entries) {
-    const m = exerciseMetrics(ex);
+  for (const { exercise, session } of entries) {
+    const m = exerciseMetrics(exercise, session.bodyweight);
     r.bestWeight = max(r.bestWeight, m.bestWeight);
     r.bestE1RM = max(r.bestE1RM, m.e1rm);
     r.bestVolume = m.volume > 0 ? max(r.bestVolume, m.volume) : r.bestVolume;
@@ -39,7 +40,7 @@ export type RecordKind = 'weight' | 'e1rm' | 'reps' | 'seconds' | 'assistance';
  * Does this completed working set beat a prior record? Returns the kind of
  * record (for the badge) or null. Direction flips for assisted exercises.
  */
-export function setRecord(ex: SessionExercise, set: SetEntry, records: Records): RecordKind | null {
+export function setRecord(ex: SessionExercise, set: SetEntry, records: Records, bodyweight: number | null = null): RecordKind | null {
   if (!set.completed || set.warmup || set.reps == null || set.reps <= 0) return null;
 
   if (ex.measure === 'seconds') {
@@ -50,11 +51,13 @@ export function setRecord(ex: SessionExercise, set: SetEntry, records: Records):
     return records.minAssistance == null || set.weight < records.minAssistance ? 'assistance' : null;
   }
   if (ex.loadType === 'bodyweight' && set.weight == null) {
-    return records.bestReps == null || set.reps > records.bestReps ? 'reps' : null;
+    if (records.bestReps == null || set.reps > records.bestReps) return 'reps';
+    const e = est1RM(setLoad(ex, null, bodyweight), set.reps);
+    return e > 0 && (records.bestE1RM == null || e > records.bestE1RM) ? 'e1rm' : null;
   }
   if (set.weight == null) return null;
   if (records.bestWeight == null || set.weight > records.bestWeight) return 'weight';
-  const e = est1RM(setLoad(ex, set.weight), set.reps);
+  const e = est1RM(setLoad(ex, set.weight, bodyweight), set.reps);
   if (e > 0 && (records.bestE1RM == null || e > records.bestE1RM)) return 'e1rm';
   return null;
 }
@@ -69,23 +72,27 @@ export function recordLabel(kind: RecordKind): string {
   }
 }
 
+/** Advance running records after a set beat one, so each kind reports once. */
+export function applyRecord(running: Records, ex: SessionExercise, set: SetEntry, kind: RecordKind, bodyweight: number | null = null): void {
+  if (kind === 'weight') running.bestWeight = set.weight;
+  if (kind === 'assistance') running.minAssistance = set.weight;
+  if (kind === 'reps') running.bestReps = set.reps;
+  if (kind === 'seconds') running.bestSeconds = set.reps;
+  if (kind === 'e1rm' || kind === 'weight' || kind === 'reps') {
+    const e = est1RM(setLoad(ex, set.weight, bodyweight), set.reps!);
+    if (e > 0) running.bestE1RM = Math.max(running.bestE1RM ?? 0, e);
+  }
+}
+
 /** Records set during one exercise instance, for the workout summary. */
-export function exerciseRecordsBeaten(ex: SessionExercise, prior: Records): RecordKind[] {
+export function exerciseRecordsBeaten(ex: SessionExercise, prior: Records, bodyweight: number | null = null): RecordKind[] {
   const kinds = new Set<RecordKind>();
-  // Walk sets in order, updating the running records so a single exercise
-  // reports each kind at most once.
   const running = { ...prior };
   for (const set of ex.sets) {
-    const kind = setRecord(ex, set, running);
+    const kind = setRecord(ex, set, running, bodyweight);
     if (!kind) continue;
     kinds.add(kind);
-    if (kind === 'weight') running.bestWeight = set.weight;
-    if (kind === 'assistance') running.minAssistance = set.weight;
-    if (kind === 'reps') running.bestReps = set.reps;
-    if (kind === 'seconds') running.bestSeconds = set.reps;
-    if (kind === 'e1rm' || kind === 'weight') {
-      running.bestE1RM = Math.max(running.bestE1RM ?? 0, est1RM(setLoad(ex, set.weight!), set.reps!));
-    }
+    applyRecord(running, ex, set, kind, bodyweight);
   }
   return [...kinds];
 }

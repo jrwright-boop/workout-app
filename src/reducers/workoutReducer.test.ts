@@ -4,7 +4,7 @@ import { getInitialState } from '../storage/localStorage';
 import { DEFAULT_TYPE_FIELDS, type AppState, type ExerciseTemplate, type SetEntry, type WorkoutSession } from '../types';
 
 function tpl(id: string, name: string, extra: Partial<ExerciseTemplate> = {}): ExerciseTemplate {
-  return { id, name, defaultSetCount: 3, skipped: false, targetRepMin: 8, targetRepMax: 12, ...DEFAULT_TYPE_FIELDS, ...extra };
+  return { id, name, defaultSetCount: 3, skipped: false, targetRepMin: 8, targetRepMax: 12, cues: '', supersetGroup: null, muscles: null, ...DEFAULT_TYPE_FIELDS, ...extra };
 }
 
 function set(weight: number | null, reps: number | null, extra: Partial<SetEntry> = {}): SetEntry {
@@ -31,9 +31,9 @@ function stateWithDay(): AppState {
 function pastSession(sets: SetEntry[], overrides: Partial<WorkoutSession['exercises'][number]> = {}): WorkoutSession {
   return {
     id: 's-old', dayId: 'd1', dayName: 'Push', date: '2026-08-10',
-    startedAt: '2026-08-10T17:00:00Z', completedAt: '2026-08-10T18:00:00Z',
+    startedAt: '2026-08-10T17:00:00Z', completedAt: '2026-08-10T18:00:00Z', bodyweight: null, deload: false, backdated: false,
     exercises: [{
-      exerciseId: 'e1', name: 'Bench', origin: 'scheduled', notes: '', skipped: false, burndown: null,
+      exerciseId: 'e1', name: 'Bench', origin: 'scheduled', supersetGroup: null, notes: '', skipped: false, burndown: null,
       targetRepMin: 8, targetRepMax: 12, ...DEFAULT_TYPE_FIELDS, sets, ...overrides,
     }],
   };
@@ -137,7 +137,7 @@ describe('TOGGLE_SET_COMPLETE', () => {
 });
 
 describe('ADD_EXERCISE / EDIT_EXERCISE / COPY_EXERCISE_TO_DAY', () => {
-  const fields = { name: 'Row', defaultSetCount: 3, targetRepMin: null, targetRepMax: null, ...DEFAULT_TYPE_FIELDS };
+  const fields = { name: 'Row', defaultSetCount: 3, targetRepMin: null, targetRepMax: null, cues: '', muscles: null, ...DEFAULT_TYPE_FIELDS };
 
   it('reuses a supplied id and refuses a duplicate on the same day', () => {
     let state = stateWithDay();
@@ -163,10 +163,11 @@ describe('ADD_EXERCISE / EDIT_EXERCISE / COPY_EXERCISE_TO_DAY', () => {
     state = workoutReducer(state, { type: 'COPY_EXERCISE_TO_DAY', payload: { fromDayId: 'd1', toDayId: d2, exerciseId: 'e1' } });
     state = workoutReducer(state, {
       type: 'EDIT_EXERCISE',
-      payload: { dayId: 'd1', exerciseId: 'e1', name: 'Bench Press', defaultSetCount: 5, targetRepMin: 3, targetRepMax: 5, loadType: 'external', perSide: false, measure: 'reps', increment: 2.5 },
+      payload: { dayId: 'd1', exerciseId: 'e1', name: 'Bench Press', defaultSetCount: 5, targetRepMin: 3, targetRepMax: 5, loadType: 'external', perSide: false, measure: 'reps', increment: 2.5, cues: 'tuck elbows', muscles: null },
     });
     expect(state.days[d2].exercises.e1.name).toBe('Bench Press');
     expect(state.days[d2].exercises.e1.increment).toBe(2.5);
+    expect(state.days[d2].exercises.e1.cues).toBe('tuck elbows');
     expect(state.days[d2].exercises.e1.defaultSetCount).toBe(3); // per-day, untouched
     expect(state.days.d1.exercises.e1.defaultSetCount).toBe(5);
   });
@@ -277,5 +278,76 @@ describe('origin and same-day pre-fill', () => {
     state.history = [makeup, ...state.history];
     const next = workoutReducer(state, { type: 'START_SESSION', payload: { dayId: 'd1' } });
     expect(next.activeSession!.exercises[0].sets[0].weight).toBe(185);
+  });
+});
+
+describe('backdated sessions', () => {
+  it('starts at noon on the chosen day, pre-fills only from earlier history, and files into place', () => {
+    let state = { ...stateWithDay(), history: [pastSession([set(200, 8), set(200, 8), set(200, 8)])] }; // Aug 10
+    const later = pastSession([set(100, 8), set(100, 8), set(100, 8)]);
+    later.id = 's-later'; later.startedAt = '2026-09-01T17:00:00Z';
+    state.history = [later, ...state.history];
+
+    state = workoutReducer(state, { type: 'START_SESSION', payload: { dayId: 'd1', backdate: '2026-08-20' } });
+    const s = state.activeSession!;
+    expect(s.backdated).toBe(true);
+    expect(s.date).toBe('2026-08-20');
+    expect(s.exercises[0].sets[0].weight).toBe(200); // not the Sep 1 session
+    expect(s.exercises[0].sets[0].suggested).toBe(false);
+
+    state = workoutReducer(state, { type: 'FINISH_SESSION' });
+    expect(state.history.map(h => h.id)).toEqual(['s-later', s.id, 's-old']);
+    expect(state.history[1].completedAt).toBe(state.history[1].startedAt);
+  });
+});
+
+describe('deload weeks', () => {
+  it('flags sessions in the week and keeps them out of pre-fill', () => {
+    let state = { ...stateWithDay(), history: [pastSession([set(100, 12), set(100, 12), set(100, 12)])] }; // Mon Aug 10 2026
+    state = workoutReducer(state, { type: 'TOGGLE_DELOAD_WEEK', payload: { weekStart: '2026-08-10' } });
+    expect(state.deloadWeeks).toEqual(['2026-08-10']);
+    expect(state.history[0].deload).toBe(true);
+
+    // The deload session hit the top of the range, but must not drive a suggestion.
+    const next = workoutReducer(state, { type: 'START_SESSION', payload: { dayId: 'd1' } });
+    expect(next.activeSession!.exercises[0].sets[0].suggested).toBe(false);
+    expect(next.activeSession!.exercises[0].sets[0].weight).toBe(100); // still mentioned as a fallback
+
+    state = workoutReducer(state, { type: 'TOGGLE_DELOAD_WEEK', payload: { weekStart: '2026-08-10' } });
+    expect(state.deloadWeeks).toEqual([]);
+    expect(state.history[0].deload).toBe(false);
+  });
+});
+
+describe('supersets', () => {
+  it('links two exercises, keeps them adjacent, carries the group into a session, and unlinks cleanly', () => {
+    let state = stateWithDay();
+    state = workoutReducer(state, { type: 'ADD_EXERCISE', payload: { dayId: 'd1', name: 'Row', defaultSetCount: 3, targetRepMin: null, targetRepMax: null, cues: '', muscles: null, ...DEFAULT_TYPE_FIELDS } });
+    const rowId = state.days.d1.exerciseOrder[2];
+    state = workoutReducer(state, { type: 'SET_SUPERSET', payload: { dayId: 'd1', exerciseId: rowId, withExerciseId: 'e1' } });
+    const g = state.days.d1.exercises.e1.supersetGroup;
+    expect(g).not.toBeNull();
+    expect(state.days.d1.exercises[rowId].supersetGroup).toBe(g);
+    expect(state.days.d1.exerciseOrder).toEqual(['e1', rowId, 'e2']);
+
+    const session = workoutReducer(state, { type: 'START_SESSION', payload: { dayId: 'd1' } }).activeSession!;
+    expect(session.exercises.map(e => e.supersetGroup)).toEqual([g, g]);
+
+    state = workoutReducer(state, { type: 'SET_SUPERSET', payload: { dayId: 'd1', exerciseId: rowId, withExerciseId: null } });
+    expect(state.days.d1.exercises[rowId].supersetGroup).toBeNull();
+    expect(state.days.d1.exercises.e1.supersetGroup).toBeNull(); // a group of one is dissolved
+  });
+});
+
+describe('bodyweight log', () => {
+  it('snapshots bodyweight onto new sessions and updates the active one', () => {
+    let state = stateWithDay();
+    state = workoutReducer(state, { type: 'LOG_BODYWEIGHT', payload: { date: '2026-09-01', weight: 180 } });
+    state = workoutReducer(state, { type: 'START_SESSION', payload: { dayId: 'd1' } });
+    expect(state.activeSession!.bodyweight).toBe(180);
+    const today = state.activeSession!.date;
+    state = workoutReducer(state, { type: 'LOG_BODYWEIGHT', payload: { date: today, weight: 178 } });
+    expect(state.activeSession!.bodyweight).toBe(178);
+    expect(state.bodyweightLog[0]).toEqual({ date: today, weight: 178 });
   });
 });

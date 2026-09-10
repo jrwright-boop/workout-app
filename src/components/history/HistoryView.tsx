@@ -4,6 +4,7 @@ import { useWorkout } from '../../hooks/useWorkout';
 import { useExerciseHistory, useExerciseRecords } from '../../hooks/useExerciseHistory';
 import { NumericInput } from '../common/NumericInput';
 import { TrainingCalendar } from './TrainingCalendar';
+import { WeeklyVolume } from './WeeklyVolume';
 import { formatDateTime } from '../../utils/date';
 import { sessionDate } from '../../utils/calendar';
 import type { ExerciseId, ExerciseTypeFields, SessionExercise, WorkoutSession } from '../../types';
@@ -15,6 +16,9 @@ import './HistoryView.css';
 // actually opens an exercise's history.
 const ExerciseChart = lazy(() =>
   import('./ExerciseChart').then(m => ({ default: m.ExerciseChart }))
+);
+const BodyweightChart = lazy(() =>
+  import('./BodyweightChart').then(m => ({ default: m.BodyweightChart }))
 );
 
 interface HistoryViewProps {
@@ -55,20 +59,25 @@ function formatSets(ex: SessionExercise): string {
 }
 
 function SessionSummary({ session }: { session: WorkoutSession }) {
-  const { state, dispatch } = useWorkout();
+  const { state, dispatch, dispatchUndoable } = useWorkout();
   const [editing, setEditing] = useState(false);
 
   const handleDelete = () => {
-    if (confirm(`Delete this ${session.dayName} workout from ${formatDateTime(session.startedAt)}? This cannot be undone.`)) {
-      dispatch({ type: 'DELETE_HISTORY_SESSION', payload: { sessionId: session.id } });
-    }
+    dispatchUndoable(
+      { type: 'DELETE_HISTORY_SESSION', payload: { sessionId: session.id } },
+      `Deleted ${session.dayName} (${formatDateTime(session.startedAt)})`
+    );
   };
 
   return (
     <div className="history-session">
       <div className="history-session-header">
         <div className="history-session-title">
-          <span className="history-day-name">{session.dayName}</span>
+          <span className="history-day-name">
+            {session.dayName}
+            {session.deload && <span className="origin-tag origin-tag--deload">deload</span>}
+            {session.backdated && <span className="origin-tag origin-tag--muted">logged later</span>}
+          </span>
           <span className="history-date">{formatDateTime(session.startedAt)}</span>
         </div>
         <div className="history-session-actions">
@@ -233,6 +242,7 @@ function ExerciseHistoryContent({ exerciseId, exerciseName, exerciseType, dayId 
                   {formatDateTime(session.startedAt)}
                   {session.dayName && <span className="history-entry-day"> · {session.dayName}</span>}
                   {exercise.origin === 'makeup' && <span className="origin-tag">make-up</span>}
+                  {session.deload && <span className="origin-tag origin-tag--deload">deload</span>}
                 </span>
                 {setsSummary && <span className="history-ex-sets">{setsSummary}</span>}
                 {dropsSummary && <span className="history-ex-drops">Drops: {dropsSummary}</span>}
@@ -265,6 +275,12 @@ function FullHistoryContent() {
     <div className="history-content">
       {state.history.length > 0 && (
         <TrainingCalendar history={state.history} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
+      )}
+      {state.history.length > 0 && <WeeklyVolume />}
+      {state.bodyweightLog.length >= 2 && (
+        <Suspense fallback={null}>
+          <BodyweightChart log={state.bodyweightLog} unit={state.unit} />
+        </Suspense>
       )}
       {state.history.length > 0 && (
         <input

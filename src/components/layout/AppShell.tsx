@@ -6,7 +6,7 @@ import { isBackupOverdue } from '../../storage/localStorage';
 import './AppShell.css';
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { state, dispatch, storageError } = useWorkout();
+  const { state, dispatch, storageError, pendingUndo } = useWorkout();
   const [showHistory, setShowHistory] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   // Re-evaluated when the settings modal closes (i.e. after a possible export).
@@ -65,6 +65,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       <main className="main-content">
         {children}
       </main>
+      {pendingUndo && (
+        <div className="undo-toast" role="status">
+          <span className="undo-toast-label">{pendingUndo.label}</span>
+          <button className="undo-toast-btn" onClick={pendingUndo.undo}>Undo</button>
+        </div>
+      )}
       <HistoryView open={showHistory} onClose={() => setShowHistory(false)} />
       <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} />
     </div>

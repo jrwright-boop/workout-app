@@ -3,8 +3,11 @@ import { Modal } from '../common/Modal';
 import { NumericInput } from '../common/NumericInput';
 import { useWorkout } from '../../hooks/useWorkout';
 import { getLastBackupDate, recordBackup, migrate, validateAppState } from '../../storage/localStorage';
-import { formatDate, formatElapsed } from '../../utils/date';
+import { formatElapsed } from '../../utils/date';
 import { encodeProgramLink } from '../../utils/programLink';
+import { toISODate, formatDate } from '../../utils/date';
+import { notificationsSupported, requestNotificationPermission } from '../../utils/notifications';
+import '../exercises/ExerciseForm.css';
 import './SettingsModal.css';
 
 interface SettingsModalProps {
@@ -26,10 +29,34 @@ function describeLastBackup(iso: string | null): string {
 }
 
 export function SettingsModal({ open, onClose }: SettingsModalProps) {
-  const { state, dispatch } = useWorkout();
+  const { state, dispatch, dispatchUndoable } = useWorkout();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [lastBackup, setLastBackup] = useState<string | null>(() => getLastBackupDate());
   const [shareStatus, setShareStatus] = useState<string | null>(null);
+  const [bwInput, setBwInput] = useState<number | null>(null);
+  const [notifyStatus, setNotifyStatus] = useState<string | null>(null);
+  const today = toISODate();
+  const todaysBw = state.bodyweightLog.find(e => e.date === today)?.weight ?? null;
+
+  const handleLogBodyweight = () => {
+    if (bwInput == null || bwInput <= 0) return;
+    dispatch({ type: 'LOG_BODYWEIGHT', payload: { date: today, weight: bwInput } });
+    setBwInput(null);
+  };
+
+  const handleToggleNotifications = async () => {
+    if (state.restNotifications) {
+      dispatch({ type: 'SET_REST_NOTIFICATIONS', payload: { enabled: false } });
+      return;
+    }
+    const ok = await requestNotificationPermission();
+    if (ok) {
+      dispatch({ type: 'SET_REST_NOTIFICATIONS', payload: { enabled: true } });
+      setNotifyStatus(null);
+    } else {
+      setNotifyStatus('Notifications are blocked for this site. Allow them in your browser settings, then try again.');
+    }
+  };
 
   const handleExport = () => {
     const json = JSON.stringify(state, null, 2);
@@ -130,6 +157,54 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
         </div>
 
         <div className="settings-section">
+          <h3 className="settings-section-title">Rest Notifications</h3>
+          <div className="settings-row">
+            <span className="settings-row-label">Notify when rest ends</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={state.restNotifications}
+              aria-label="Notify when rest ends"
+              className={`toggle-btn ${state.restNotifications ? 'toggle-btn--on' : ''}`}
+              onClick={handleToggleNotifications}
+              disabled={!notificationsSupported()}
+            >
+              <span className="toggle-knob" />
+            </button>
+          </div>
+          <p className="settings-hint">
+            {notificationsSupported()
+              ? 'Shows a system notification if the app is in the background when the timer ends. On iPhone this only works while the app is open or recently backgrounded; iOS suspends web apps when the phone locks.'
+              : 'Notifications are not available in this browser. On iPhone, add the app to your Home Screen first.'}
+          </p>
+          {notifyStatus && <p className="settings-hint" role="status">{notifyStatus}</p>}
+        </div>
+
+        <div className="settings-section">
+          <h3 className="settings-section-title">Bodyweight</h3>
+          <p className="settings-hint">Used to count bodyweight and assisted exercises properly: pull-ups become bodyweight minus assistance, dips become bodyweight plus added load.</p>
+          <div className="settings-row">
+            <span className="settings-row-label">Today{todaysBw != null ? ` (logged ${todaysBw} ${state.unit})` : ''}</span>
+            <div className="settings-inline">
+              <NumericInput value={bwInput} onChange={setBwInput} placeholder={state.unit} />
+              <button className="settings-small-btn" onClick={handleLogBodyweight} disabled={bwInput == null}>Log</button>
+            </div>
+          </div>
+          {state.bodyweightLog.length > 0 && (
+            <div className="bw-list">
+              {state.bodyweightLog.slice(0, 5).map(e => (
+                <div key={e.date} className="bw-row">
+                  <span className="bw-date">{formatDate(e.date)}</span>
+                  <span className="bw-weight">{e.weight} {state.unit}</span>
+                  <button className="settings-small-btn settings-small-btn--danger" aria-label={`Delete bodyweight for ${e.date}`} onClick={() => dispatch({ type: 'DELETE_BODYWEIGHT', payload: { date: e.date } })}>✕</button>
+                </div>
+              ))}
+              {state.bodyweightLog.length > 5 && <span className="settings-hint">+{state.bodyweightLog.length - 5} more (chart in History)</span>}
+            </div>
+          )}
+        </div>
+
+        <div className="settings-section">
           <h3 className="settings-section-title">Units &amp; Bar</h3>
           <div className="settings-row">
             <span className="settings-row-label">Weights in <strong>{state.unit}</strong></span>
@@ -174,7 +249,7 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
                     <button
                       className="settings-small-btn settings-small-btn--danger"
                       aria-label={`Delete program ${p.name}`}
-                      onClick={() => { if (confirm(`Delete program "${p.name}"?`)) dispatch({ type: 'DELETE_PROGRAM', payload: { programId: p.id } }); }}
+                      onClick={() => dispatchUndoable({ type: 'DELETE_PROGRAM', payload: { programId: p.id } }, `Deleted program ${p.name}`)}
                     >
                       ✕
                     </button>

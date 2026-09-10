@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Modal } from '../common/Modal';
-import type { ExerciseTemplate, DayId, LoadType, Measure, ExerciseId } from '../../types';
-import { DEFAULT_TYPE_FIELDS } from '../../types';
+import type { ExerciseTemplate, DayId, LoadType, Measure, ExerciseId, MuscleGroup } from '../../types';
+import { DEFAULT_TYPE_FIELDS, MUSCLE_GROUPS } from '../../types';
+import { formatMuscle, inferMuscles } from '../../utils/muscles';
 import { useWorkout } from '../../hooks/useWorkout';
 import { useExerciseLibrary } from '../../hooks/useExerciseHistory';
 import { exerciseKey } from '../../utils/exerciseKey';
@@ -36,6 +37,9 @@ export function ExerciseForm({ open, onClose, dayId, exercise }: ExerciseFormPro
   const [perSide, setPerSide] = useState(exercise?.perSide ?? DEFAULT_TYPE_FIELDS.perSide);
   const [measure, setMeasure] = useState<Measure>(exercise?.measure ?? DEFAULT_TYPE_FIELDS.measure);
   const [increment, setIncrement] = useState(exercise?.increment?.toString() ?? '');
+  const [cues, setCues] = useState(exercise?.cues ?? '');
+  const [muscleOverride, setMuscleOverride] = useState<MuscleGroup[] | null>(exercise?.muscles ?? null);
+  const [editMuscles, setEditMuscles] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(
     !!exercise && (exercise.loadType !== 'external' || exercise.perSide || exercise.measure !== 'reps' || exercise.increment != null)
   );
@@ -71,8 +75,18 @@ export function ExerciseForm({ open, onClose, dayId, exercise }: ExerciseFormPro
     return Number.isFinite(n) && n > 0 ? n : null;
   };
 
+  const inferred = useMemo(() => inferMuscles(name), [name]);
+  const supersetPartner = exercise?.supersetGroup
+    ? day.exerciseOrder.map(id => day.exercises[id]).find(e => e.id !== exercise.id && e.supersetGroup === exercise.supersetGroup) ?? null
+    : null;
+  const supersetCandidates = exercise
+    ? day.exerciseOrder.map(id => day.exercises[id]).filter(e => e.id !== exercise.id)
+    : [];
+
   const applyLibraryEntry = (entry: typeof library[number]) => {
     setName(entry.name);
+    setCues(entry.cues);
+    setMuscleOverride(entry.muscles);
     setPickedId(entry.id);
     setSetCount(entry.defaultSetCount);
     setRepMin(entry.targetRepMin?.toString() ?? '');
@@ -98,6 +112,8 @@ export function ExerciseForm({ open, onClose, dayId, exercise }: ExerciseFormPro
       perSide,
       measure,
       increment: Number.isFinite(incRaw) && incRaw > 0 ? incRaw : null,
+      cues: cues.trim(),
+      muscles: muscleOverride && muscleOverride.length > 0 ? muscleOverride : null,
     };
 
     if (exercise) {
@@ -191,6 +207,84 @@ export function ExerciseForm({ open, onClose, dayId, exercise }: ExerciseFormPro
             {loadType === 'assisted' ? ' Next session pre-fills less assistance.' : ' Next session pre-fills the next weight up.'}
           </span>
         </label>
+
+        <label className="form-label">
+          Cues <span className="form-label-hint">(shown every session)</span>
+          <textarea
+            className="form-input form-textarea"
+            value={cues}
+            onChange={e => setCues(e.target.value)}
+            placeholder="e.g. seat 4, grip one finger outside the ring"
+            rows={2}
+          />
+        </label>
+
+        <div className="form-label">
+          <span>
+            Muscles{' '}
+            <span className="form-label-hint">
+              {muscleOverride ? '(set by you)' : inferred ? '(from the name)' : '(unknown, tap to set)'}
+            </span>
+          </span>
+          <div className="muscle-chips">
+            {(muscleOverride ?? inferred?.primary ?? []).map(m => (
+              <span key={m} className="muscle-chip muscle-chip--primary">{formatMuscle(m)}</span>
+            ))}
+            {!muscleOverride && inferred?.secondary.map(m => (
+              <span key={m} className="muscle-chip">{formatMuscle(m)}</span>
+            ))}
+            <button type="button" className="muscle-chip muscle-chip--edit" onClick={() => setEditMuscles(v => !v)}>
+              {editMuscles ? 'Done' : muscleOverride ? 'Change' : 'Override'}
+            </button>
+          </div>
+          {editMuscles && (
+            <div className="muscle-chips" role="group" aria-label="Primary muscles">
+              {MUSCLE_GROUPS.map(m => {
+                const on = (muscleOverride ?? []).includes(m);
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    aria-pressed={on}
+                    className={`muscle-chip muscle-chip--toggle ${on ? 'muscle-chip--primary' : ''}`}
+                    onClick={() => setMuscleOverride(prev => {
+                      const cur = prev ?? [];
+                      const next = cur.includes(m) ? cur.filter(x => x !== m) : [...cur, m];
+                      return next.length ? next : null;
+                    })}
+                  >
+                    {formatMuscle(m)}
+                  </button>
+                );
+              })}
+              {muscleOverride && (
+                <button type="button" className="muscle-chip muscle-chip--edit" onClick={() => setMuscleOverride(null)}>
+                  Back to auto
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {exercise && supersetCandidates.length > 0 && (
+          <label className="form-label">
+            Superset with
+            <select
+              className="form-input"
+              value={supersetPartner?.id ?? ''}
+              onChange={e => dispatch({
+                type: 'SET_SUPERSET',
+                payload: { dayId, exerciseId: exercise.id, withExerciseId: e.target.value || null },
+              })}
+            >
+              <option value="">None</option>
+              {supersetCandidates.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <span className="form-label-hint">Paired exercises alternate sets; the rest timer runs after the pair.</span>
+          </label>
+        )}
 
         <button type="button" className="form-disclosure" onClick={() => setShowAdvanced(v => !v)} aria-expanded={showAdvanced}>
           {showAdvanced ? '▾' : '▸'} Exercise type

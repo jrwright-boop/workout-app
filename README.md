@@ -14,6 +14,15 @@ Runs as an installable PWA. All data lives on the device in `localStorage`; noth
 - **Scheduled vs make-up.** Exercises added mid-workout (one at a time, or a whole missed day's plan) are tagged as make-ups automatically. They pre-fill from the most recent instance anywhere, show a tag in history, draw as hollow dots on charts, and can be filtered out of an exercise's history with one tap. Records are always all-time; the records row notes when this day's best differs.
 - **Warm-up sets.** Tap a set number to mark it as a warm-up. Warm-ups are excluded from volume, records, and the progression check.
 - **Personal records.** Heaviest, best estimated 1RM, most reps, longest hold, or least assistance, per exercise. The check button turns gold when a set beats one, and the workout summary lists them.
+- **Stall and regression alerts.** Four sessions at the same load without reaching the top of the range flags a stall. Two sessions in a row under the bottom of the range suggests a ~10% drop (or more assistance). Both use same-day scheduled history only.
+- **Bodyweight log.** Log your weight in Settings and bodyweight exercises count bodyweight plus added load, assisted ones count bodyweight minus assistance, so dips and pull-ups get real volume and est. 1RM. Sessions snapshot the bodyweight in effect that day. Trend chart in History.
+- **Cues.** Per-exercise setup notes ("seat 4, grip one finger outside the ring") shown every session.
+- **Supersets.** Pair exercises from the edit form; they render together in a session and the rest timer runs after the pair.
+- **Muscle groups and weekly volume.** Muscles are inferred from exercise names (override per exercise). History shows completed working sets per muscle this week and as a 4-week average. Primary muscles count a full set, secondary half.
+- **Deload weeks.** Toggle "Deload week" above Start Workout. Deload sessions are tagged and never drive pre-fill, progression, or stall checks.
+- **Log a past workout.** Pick a date, fill in the sets, finish. It files into history in the right place with no timer or duration.
+- **Undo.** Deleting an exercise, a day, a history session, or a program shows a six-second Undo toast instead of a scary confirm.
+- **Rest notifications.** Optional system notification when the timer ends while the app is in the background, scheduled through the service worker. iOS suspends web apps on lock, so there it only fires while the app is open or recently backgrounded.
 - **Plate calculator.** Tap "Plates" on any barbell exercise to see what to load per side. Bar weight is configurable in Settings.
 - **Live session tools.** Rest timer with a wall-clock deadline (survives phone lock), workout timer, drop sets, per-exercise notes, add an exercise or a whole day's plan mid-workout.
 - **History, calendar, and trends.** Month calendar with weekly stats and streak, searchable full history, edit past sets, per-exercise charts that change with the type (1RM and volume, or reps, or assistance with the axis flipped so down is good).
@@ -51,7 +60,7 @@ public/sw.js                   service worker (cache-first for hashed assets)
 
 Exercise identity is the template id; the v5 migration gave same-named exercises across days one id and relinked history to it. Name matching (case-insensitive) is the fallback everywhere so one-off session exercises still count.
 
-Every logged exercise carries an `origin` (`scheduled` or `makeup`) and lives inside a session that knows its `dayId`. Those two facts are what "same day first" pre-fill and the history filters use; there is one identity per exercise, never one per day. The v6 migration is purely additive: it tags each logged exercise by checking whether its session's day plan includes it, and touches nothing else (there is a test that proves the rest of the data round-trips unchanged).
+Every session snapshots `bodyweight`, `deload`, and `backdated` at start time. Every logged exercise carries an `origin` (`scheduled` or `makeup`) and lives inside a session that knows its `dayId`. Those two facts are what "same day first" pre-fill and the history filters use; there is one identity per exercise, never one per day. The v6 migration is purely additive: it tags each logged exercise by checking whether its session's day plan includes it, and touches nothing else (there is a test that proves the rest of the data round-trips unchanged).
 
 `schemaVersion` gates migrations in `storage/localStorage.ts`; bump it and add a migration step when the shape changes. Stored and imported data is structurally validated; corrupt data lands on a recovery screen instead of a blank page.
 

@@ -62,3 +62,44 @@ self.addEventListener('fetch', (event) => {
       .catch(() => caches.match(request))
   );
 });
+
+// ---------------------------------------------------------------------------
+// Rest-timer notifications. The page asks for one at a deadline; if the page
+// is still alive at that moment it cancels this and shows its own, so the
+// user never gets two. Timers here die with the worker, which is the best a
+// PWA can do without a native scheduler.
+// ---------------------------------------------------------------------------
+const restTimers = new Map();
+
+self.addEventListener('message', (event) => {
+  const data = event.data || {};
+  if (data.type === 'SCHEDULE_REST_END') {
+    const existing = restTimers.get(data.id);
+    if (existing) clearTimeout(existing);
+    const delay = Math.max(0, data.at - Date.now());
+    restTimers.set(data.id, setTimeout(() => {
+      restTimers.delete(data.id);
+      self.registration.showNotification('Rest over', {
+        body: 'Time for the next set.',
+        tag: 'rest-timer',
+        renotify: true,
+        vibrate: [200, 100, 200],
+      });
+    }, delay));
+  } else if (data.type === 'CANCEL_REST_END') {
+    const existing = restTimers.get(data.id);
+    if (existing) clearTimeout(existing);
+    restTimers.delete(data.id);
+  }
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      const client = clients.find((c) => 'focus' in c);
+      if (client) return client.focus();
+      return self.clients.openWindow('./');
+    })
+  );
+});

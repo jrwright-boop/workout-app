@@ -1,22 +1,38 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useId } from 'react';
 import { playBeep } from '../../utils/audio';
+import { cancelRestNotification, scheduleRestNotification, showRestNotification } from '../../utils/notifications';
 import './RestTimer.css';
 
 interface RestTimerProps {
   onDismiss: () => void;
   defaultSeconds?: number;
+  /** Ask the service worker to notify at the deadline (Settings toggle). */
+  notify?: boolean;
 }
 
-export function RestTimer({ onDismiss, defaultSeconds = 90 }: RestTimerProps) {
+export function RestTimer({ onDismiss, defaultSeconds = 90, notify = false }: RestTimerProps) {
   // Count down against a wall-clock deadline instead of interval ticks, so
   // the timer stays correct after the phone is locked or the tab suspended.
   const endRef = useRef(0);
   const [remaining, setRemaining] = useState(defaultSeconds);
   const [total, setTotal] = useState(defaultSeconds);
   const hasAlertedRef = useRef(false);
+  const notifyIdRef = useRef(`rest-${useId()}`);
+
+  // Keep the worker's scheduled notification in step with the deadline.
+  const syncNotification = () => {
+    if (!notify) return;
+    scheduleRestNotification(notifyIdRef.current, endRef.current);
+  };
 
   useEffect(() => {
     endRef.current = Date.now() + defaultSeconds * 1000;
+    if (notify) scheduleRestNotification(notifyIdRef.current, endRef.current);
+    const id = notifyIdRef.current;
+    return () => { if (notify) cancelRestNotification(id); };
+  }, [defaultSeconds, notify]);
+
+  useEffect(() => {
     const tick = () => {
       setRemaining(Math.max(0, Math.round((endRef.current - Date.now()) / 1000)));
     };
@@ -36,8 +52,14 @@ export function RestTimer({ onDismiss, defaultSeconds = 90 }: RestTimerProps) {
         navigator.vibrate([200, 100, 200]);
       }
       playBeep();
+      if (notify) {
+        // The page is alive, so it owns the notification: cancel the
+        // worker's copy and show one only if the app isn't on screen.
+        cancelRestNotification(notifyIdRef.current);
+        if (document.visibilityState !== 'visible') showRestNotification();
+      }
     }
-  }, [remaining]);
+  }, [remaining, notify]);
 
   const adjust = (delta: number) => {
     endRef.current = Math.max(Date.now(), endRef.current + delta * 1000);
@@ -46,6 +68,7 @@ export function RestTimer({ onDismiss, defaultSeconds = 90 }: RestTimerProps) {
     if (hasAlertedRef.current && delta > 0) {
       hasAlertedRef.current = false;
     }
+    syncNotification();
   };
 
   const progress = total > 0 ? remaining / total : 0;

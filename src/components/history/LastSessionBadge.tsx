@@ -9,8 +9,8 @@ interface LastSessionBadgeProps {
 
 function summarise(ex: SessionExercise): string {
   return ex.sets
-    .filter(s => !s.warmup && s.weight != null && s.reps != null)
-    .map(s => `${s.weight}x${s.reps}`)
+    .filter(s => !s.warmup && s.reps != null && (s.weight != null || ex.loadType !== 'external'))
+    .map(s => (s.weight != null ? `${s.weight}x${s.reps}` : `BWx${s.reps}`))
     .join(', ');
 }
 

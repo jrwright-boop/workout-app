@@ -209,3 +209,13 @@
   border-radius: 8px;
   vertical-align: middle;
 }
+
+.origin-tag--deload {
+  color: var(--accent);
+  background: rgba(74, 158, 255, 0.14);
+}
+
+.origin-tag--muted {
+  color: var(--text-muted);
+  background: var(--surface);
+}

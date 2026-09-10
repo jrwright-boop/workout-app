@@ -16,6 +16,9 @@ export function getInitialState(): AppState {
     restSeconds: 90,
     barWeight: { ...DEFAULT_BAR_WEIGHT },
     programs: [],
+    bodyweightLog: [],
+    deloadWeeks: [],
+    restNotifications: false,
   };
 }
 
@@ -170,6 +173,9 @@ export function validateAppState(v: unknown): AppState | null {
   if (typeof v.restSeconds !== 'number') return null;
   if (!isObj(v.barWeight) || typeof v.barWeight.lbs !== 'number' || typeof v.barWeight.kg !== 'number') return null;
   if (!Array.isArray(v.programs) || !v.programs.every(isProgram)) return null;
+  if (!Array.isArray(v.bodyweightLog) || !v.bodyweightLog.every(e => isObj(e) && isStr(e.date) && typeof e.weight === 'number')) return null;
+  if (!Array.isArray(v.deloadWeeks) || !v.deloadWeeks.every(isStr)) return null;
+  if (typeof v.restNotifications !== 'boolean') return null;
   const out: unknown = v;
   return out as AppState;
 }
@@ -267,8 +273,57 @@ export function migrate(input: unknown): unknown {
     state.schemaVersion = 6;
   }
 
+  if (state.schemaVersion < 7) {
+    migrateToV7(state);
+    state.schemaVersion = 7;
+  }
+
   return state;
 }
+
+/**
+ * v7: cues, supersets, muscle overrides on templates; superset group on
+ * logged exercises; bodyweight / deload / backdated on sessions; bodyweight
+ * log, deload weeks, and rest notifications on state. Additive only.
+ */
+function migrateToV7(state: AppState): void {
+  for (const day of Object.values(state.days ?? {})) {
+    for (const ex of Object.values(day.exercises ?? {})) {
+      if (ex.cues === undefined) ex.cues = '';
+      if (ex.supersetGroup === undefined) ex.supersetGroup = null;
+      if (ex.muscles === undefined) ex.muscles = null;
+    }
+  }
+  for (const program of state.programs ?? []) {
+    for (const day of Object.values(program.days ?? {})) {
+      for (const ex of Object.values(day.exercises ?? {})) {
+        if (ex.cues === undefined) ex.cues = '';
+        if (ex.supersetGroup === undefined) ex.supersetGroup = null;
+        if (ex.muscles === undefined) ex.muscles = null;
+      }
+    }
+  }
+  const fillSession = (session: WorkoutSessionLike) => {
+    if (session.bodyweight === undefined) session.bodyweight = null;
+    if (session.deload === undefined) session.deload = false;
+    if (session.backdated === undefined) session.backdated = false;
+    for (const ex of session.exercises ?? []) {
+      if (ex.supersetGroup === undefined) ex.supersetGroup = null;
+    }
+  };
+  for (const session of state.history ?? []) fillSession(session);
+  if (state.activeSession) fillSession(state.activeSession);
+  if (state.bodyweightLog === undefined) state.bodyweightLog = [];
+  if (state.deloadWeeks === undefined) state.deloadWeeks = [];
+  if (state.restNotifications === undefined) state.restNotifications = false;
+}
+
+type WorkoutSessionLike = {
+  bodyweight?: number | null;
+  deload?: boolean;
+  backdated?: boolean;
+  exercises: SessionExercise[];
+};
 
 /**
  * v6: tag every logged exercise with its origin. Purely additive — nothing

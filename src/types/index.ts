@@ -19,9 +19,24 @@ export type LoadType = 'external' | 'bodyweight' | 'assisted';
 /** What the "reps" field counts. */
 export type Measure = 'reps' | 'seconds';
 
+export type MuscleGroup =
+  | 'chest' | 'back' | 'shoulders' | 'biceps' | 'triceps' | 'forearms'
+  | 'quads' | 'hamstrings' | 'glutes' | 'calves' | 'core';
+
+export const MUSCLE_GROUPS: MuscleGroup[] = [
+  'chest', 'back', 'shoulders', 'biceps', 'triceps', 'forearms',
+  'quads', 'hamstrings', 'glutes', 'calves', 'core',
+];
+
 export interface ExerciseTemplate {
   id: ExerciseId;
   name: string;
+  /** Persistent setup cues ("seat 4, grip one finger outside the ring"). Shown every session. */
+  cues: string;
+  /** Exercises on the same day sharing a group id are performed as a superset. */
+  supersetGroup: string | null;
+  /** Manual muscle-group override. null = infer from the name. */
+  muscles: MuscleGroup[] | null;
   defaultSetCount: number;
   skipped: boolean;
   /** Lower bound of the target rep range. null = no target set. */
@@ -79,6 +94,7 @@ export interface SessionExercise {
   exerciseId: ExerciseId;
   name: string;
   origin: ExerciseOrigin;
+  supersetGroup: string | null;
   sets: SetEntry[];
   burndown: { drops: DropEntry[] } | null;
   notes: string;
@@ -101,6 +117,18 @@ export interface WorkoutSession {
   startedAt: string;
   completedAt: string | null;
   exercises: SessionExercise[];
+  /** Bodyweight at the time (from the log), so bodyweight/assisted loads can be computed. */
+  bodyweight: number | null;
+  /** Deload sessions are excluded from pre-fill, progression, and stall detection. */
+  deload: boolean;
+  /** Logged after the fact; duration is unknown and the timer is hidden. */
+  backdated: boolean;
+}
+
+export interface BodyweightEntry {
+  /** Local calendar date, YYYY-MM-DD. */
+  date: string;
+  weight: number;
 }
 
 /** A saved snapshot of a split (days + exercises), switchable and shareable. */
@@ -125,6 +153,12 @@ export interface AppState {
   /** Bar weight used by the plate calculator, per unit. */
   barWeight: Record<Unit, number>;
   programs: Program[];
+  /** Newest first. */
+  bodyweightLog: BodyweightEntry[];
+  /** Monday (YYYY-MM-DD) of each week marked as a deload. */
+  deloadWeeks: string[];
+  /** Show a system notification when the rest timer ends while the app is hidden. */
+  restNotifications: boolean;
 }
 
 export interface ExerciseTypeFields {
@@ -139,6 +173,8 @@ export interface ExerciseFormFields extends ExerciseTypeFields {
   defaultSetCount: number;
   targetRepMin: number | null;
   targetRepMax: number | null;
+  cues: string;
+  muscles: MuscleGroup[] | null;
 }
 
 export type WorkoutAction =
@@ -156,7 +192,13 @@ export type WorkoutAction =
   | { type: 'COPY_EXERCISE_TO_DAY'; payload: { fromDayId: DayId; toDayId: DayId; exerciseId: ExerciseId } }
   | { type: 'REORDER_EXERCISES'; payload: { dayId: DayId; exerciseOrder: ExerciseId[] } }
   | { type: 'TOGGLE_SKIP'; payload: { dayId: DayId; exerciseId: ExerciseId } }
-  | { type: 'START_SESSION'; payload: { dayId: DayId } }
+  /** `backdate` (YYYY-MM-DD) logs a past workout: the session starts at noon that day with no timer. */
+  | { type: 'START_SESSION'; payload: { dayId: DayId; backdate?: string } }
+  | { type: 'SET_SUPERSET'; payload: { dayId: DayId; exerciseId: ExerciseId; withExerciseId: ExerciseId | null } }
+  | { type: 'LOG_BODYWEIGHT'; payload: { date: string; weight: number } }
+  | { type: 'DELETE_BODYWEIGHT'; payload: { date: string } }
+  | { type: 'TOGGLE_DELOAD_WEEK'; payload: { weekStart: string } }
+  | { type: 'SET_REST_NOTIFICATIONS'; payload: { enabled: boolean } }
   | { type: 'FINISH_SESSION' }
   | { type: 'DISCARD_SESSION' }
   | { type: 'UPDATE_SET'; payload: { exerciseIndex: number; setIndex: number; field: 'weight' | 'reps'; value: number | null } }
@@ -183,7 +225,7 @@ export type WorkoutAction =
   | { type: 'DELETE_PROGRAM'; payload: { programId: ProgramId } }
   | { type: 'IMPORT_PROGRAM'; payload: { program: Program } };
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 export const DEFAULT_TYPE_FIELDS: ExerciseTypeFields = {
   loadType: 'external',

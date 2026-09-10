@@ -9,15 +9,15 @@ function fullState(): AppState {
     days: {
       d1: {
         id: 'd1', name: 'Push', exerciseOrder: ['e1'],
-        exercises: { e1: { id: 'e1', name: 'Bench', defaultSetCount: 3, skipped: false, targetRepMin: 8, targetRepMax: 12, ...DEFAULT_TYPE_FIELDS } },
+        exercises: { e1: { id: 'e1', name: 'Bench', defaultSetCount: 3, skipped: false, targetRepMin: 8, targetRepMax: 12, cues: '', supersetGroup: null, muscles: null, ...DEFAULT_TYPE_FIELDS } },
       },
     },
     activeDayId: 'd1',
     history: [{
       id: 's1', dayId: 'd1', dayName: 'Push', date: '2026-08-19',
-      startedAt: '2026-08-19T21:00:00Z', completedAt: '2026-08-19T22:00:00Z',
+      startedAt: '2026-08-19T21:00:00Z', completedAt: '2026-08-19T22:00:00Z', bodyweight: null, deload: false, backdated: false,
       exercises: [{
-        exerciseId: 'e1', name: 'Bench', origin: 'scheduled', notes: '', skipped: false, burndown: null,
+        exerciseId: 'e1', name: 'Bench', origin: 'scheduled', supersetGroup: null, notes: '', skipped: false, burndown: null,
         targetRepMin: 8, targetRepMax: 12, ...DEFAULT_TYPE_FIELDS,
         sets: [{ weight: 100, reps: 10, completed: true, repsFromLastSession: null, warmup: false, prefilledWeight: null, suggested: false }],
       }],
@@ -80,7 +80,7 @@ describe('migrate', () => {
     };
     const out = validateAppState(migrate(v1));
     expect(out).not.toBeNull();
-    expect(out!.schemaVersion).toBe(6);
+    expect(out!.schemaVersion).toBe(7);
     expect(out!.unit).toBe('lbs');
     expect(out!.restSeconds).toBe(90);
     expect(out!.days.d1.exercises.e1.targetRepMin).toBeNull();
@@ -148,17 +148,35 @@ describe('migrate v6 (origin tags)', () => {
 
   it('tags scheduled vs make-up from the day plan and defaults to scheduled when the day is gone', () => {
     const out = validateAppState(migrate(v5()))!;
-    expect(out.schemaVersion).toBe(6);
+    expect(out.schemaVersion).toBe(7);
     expect(out.history[0].exercises.map(e => e.origin)).toEqual(['scheduled', 'makeup']);
     expect(out.history[1].exercises[0].origin).toBe('scheduled');
   });
 
-  it('changes nothing else: stripping the added field gives back the original data', () => {
+  it('changes nothing else: stripping the added fields gives back the original data', () => {
     const before = JSON.parse(JSON.stringify(v5()));
     const out = JSON.parse(JSON.stringify(migrate(v5())));
-    for (const s of out.history) for (const e of s.exercises) delete e.origin;
+    // Fields added by v6 and v7 — everything else must be untouched.
+    for (const s of out.history) {
+      delete s.bodyweight; delete s.deload; delete s.backdated;
+      for (const e of s.exercises) { delete e.origin; delete e.supersetGroup; }
+    }
+    for (const d of Object.values(out.days) as { exercises: Record<string, Record<string, unknown>> }[]) {
+      for (const e of Object.values(d.exercises)) { delete e.cues; delete e.supersetGroup; delete e.muscles; }
+    }
+    delete out.bodyweightLog; delete out.deloadWeeks; delete out.restNotifications;
     out.schemaVersion = 5;
     expect(out).toEqual(before);
+  });
+
+  it('v7 fills defaults that the UI relies on', () => {
+    const out = validateAppState(migrate(v5()))!;
+    expect(out.days.d1.exercises.e1).toMatchObject({ cues: '', supersetGroup: null, muscles: null });
+    expect(out.history[0]).toMatchObject({ bodyweight: null, deload: false, backdated: false });
+    expect(out.history[0].exercises[0].supersetGroup).toBeNull();
+    expect(out.bodyweightLog).toEqual([]);
+    expect(out.deloadWeeks).toEqual([]);
+    expect(out.restNotifications).toBe(false);
   });
 
   it('does not overwrite an origin that is already set', () => {
